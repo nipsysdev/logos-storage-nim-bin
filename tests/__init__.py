@@ -1,0 +1,1 @@
+"""Tests package for logos-storage-nim-bin."""

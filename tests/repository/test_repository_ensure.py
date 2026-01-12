@@ -1,0 +1,93 @@
+"""Tests for repository ensuring in repository.py."""
+
+import subprocess
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+from src.repository import ensure_logos_storage_repo, CommitInfo
+
+
+class TestEnsureLogosStorageRepo:
+    """Test ensure_logos_storage_repo function."""
+
+    def test_ensure_logos_storage_repo_clones_when_not_exists(self):
+        """Test that ensure_logos_storage_repo clones repository when it doesn't exist."""
+        branch = "master"
+        
+        with patch("pathlib.Path.exists", return_value=False):
+            with patch("src.repository.run_command") as mock_run:
+                mock_run.side_effect = [
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123def456789abc123def456789abc123def\n", stderr=""),
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123d\n", stderr=""),
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="master\n", stderr=""),
+                ]
+                
+                repo_dir, commit_info = ensure_logos_storage_repo(branch)
+            
+            assert repo_dir == Path("logos-storage-nim")
+            assert isinstance(commit_info, CommitInfo)
+            assert commit_info.branch == "master"
+
+    def test_ensure_logos_storage_repo_updates_when_exists(self):
+        """Test that ensure_logos_storage_repo updates repository when it exists."""
+        branch = "master"
+        
+        with patch("pathlib.Path.exists", return_value=True):
+            with patch("src.repository.run_command") as mock_run:
+                mock_run.side_effect = [
+                    # update_repository calls (5 calls)
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # fetch
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # check local
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # check remote
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # checkout
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # pull
+                    # get_commit_info calls (3 calls)
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123def456789abc123def456789abc123def\n", stderr=""),
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123d\n", stderr=""),
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="master\n", stderr=""),
+                ]
+                
+                repo_dir, commit_info = ensure_logos_storage_repo(branch)
+            
+            assert repo_dir == Path("logos-storage-nim")
+            assert isinstance(commit_info, CommitInfo)
+
+    def test_ensure_logos_storage_repo_returns_tuple(self):
+        """Test that ensure_logos_storage_repo returns a tuple of (Path, CommitInfo)."""
+        branch = "develop"
+        
+        with patch("pathlib.Path.exists", return_value=False):
+            with patch("src.repository.run_command") as mock_run:
+                mock_run.side_effect = [
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="def456789abc123def456789abc123def456789abc\n", stderr=""),
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="def4567\n", stderr=""),
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="develop\n", stderr=""),
+                ]
+                
+                result = ensure_logos_storage_repo(branch)
+            
+            assert isinstance(result, tuple)
+            assert len(result) == 2
+            assert isinstance(result[0], Path)
+            assert isinstance(result[1], CommitInfo)
+
+    def test_ensure_logos_storage_repo_with_custom_branch(self):
+        """Test that ensure_logos_storage_repo works with custom branch name."""
+        branch = "feature/test-branch"
+        
+        with patch("pathlib.Path.exists", return_value=False):
+            with patch("src.repository.run_command") as mock_run:
+                mock_run.side_effect = [
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123def456789abc123def456789abc123def\n", stderr=""),
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123d\n", stderr=""),
+                    subprocess.CompletedProcess(args=[], returncode=0, stdout="feature/test-branch\n", stderr=""),
+                ]
+                
+                repo_dir, commit_info = ensure_logos_storage_repo(branch)
+            
+            assert commit_info.branch == "feature/test-branch"

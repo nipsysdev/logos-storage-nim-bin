@@ -1,0 +1,184 @@
+name: Daily Release
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # Daily at 00:00 UTC
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+env:
+  cache_nonce: 0
+  branch: master
+
+jobs:
+  # Check for new commits
+  check-updates:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+      commit_hash: ${{ steps.check.outputs.commit_hash }}
+      commit_short: ${{ steps.check.outputs.commit_short }}
+    steps:
+      - name: Check for new commits
+        id: check
+        run: |
+          # Fetch latest commit from logos-storage-nim
+          git ls-remote https://github.com/logos-storage/logos-storage-nim.git master > latest.txt
+          LATEST_COMMIT=$(awk '{print $1}' latest.txt)
+          LATEST_SHORT=$(echo $LATEST_COMMIT | cut -c1-7)
+
+          # Get previous release commit
+          PREVIOUS_RELEASE=$(gh release view --json tagName -q '.tagName' 2>/dev/null || echo "")
+          PREVIOUS_COMMIT=$(echo "$PREVIOUS_RELEASE" | cut -d'-' -f2)
+
+          # Compare
+          if [ "$LATEST_COMMIT" != "$PREVIOUS_COMMIT" ]; then
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "commit_hash=$LATEST_COMMIT" >> $GITHUB_OUTPUT
+            echo "commit_short=$LATEST_SHORT" >> $GITHUB_OUTPUT
+            echo "New commit detected: $LATEST_SHORT"
+          else
+            echo "should_build=false" >> $GITHUB_OUTPUT
+            echo "No new commits since last release"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Matrix build
+  build:
+    needs: check-updates
+    if: needs.check-updates.outputs.should_build == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            cpu: amd64
+            builder: ubuntu-latest
+          - os: linux
+            cpu: arm64
+            builder: ubuntu-22.04-arm
+
+    name: ${{ matrix.os }}-${{ matrix.cpu }}
+    runs-on: ${{ matrix.builder }}
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install mise
+        uses: jdx/mise-action@v3
+        with:
+          enable: true
+          cache: true
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git make gcc binutils cmake
+
+      - name: Build
+        run: |
+          make clean
+          make
+        env:
+          BRANCH: ${{ env.branch }}
+
+      - name: Upload artifacts
+        if: env.ACT != 'true'
+        uses: actions/upload-artifact@v6
+        continue-on-error: true
+        with:
+          name: libstorage-${{ matrix.os }}-${{ matrix.cpu }}
+          path: dist/*/
+          retention-days: 30
+
+      - name: Verify artifacts
+        run: |
+          echo "Verifying artifacts..."
+          if [ -d "dist" ]; then
+            find dist -name "libstorage.a" -type f | while read lib; do
+              echo "Found: $lib"
+              ls -lh "$lib"
+              
+              # Verify checksum
+              checksum_file="${lib}.sha256"
+              if [ -f "$checksum_file" ]; then
+                echo "Verifying checksum..."
+                sha256sum -c "$checksum_file"
+              fi
+            done
+            echo ""
+            echo "Artifacts are available in: $(pwd)/dist/"
+          else
+            echo "No dist directory found"
+          fi
+
+  # Create release
+  release:
+    needs: [check-updates, build]
+    if: needs.check-updates.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        if: env.ACT != 'true'
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          pattern: libstorage-*
+          merge-multiple: true
+          path: /tmp/release
+
+      - name: Compress and checksum
+        if: env.ACT != 'true'
+        run: |
+          cd /tmp/release
+
+          # Find all libstorage.a files and create archives
+          find . -name "libstorage.a" -type f | while read lib; do
+            dir=$(dirname "$lib")
+            platform=$(basename "$dir")
+            
+            # Create tar.gz archive
+            archive="logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-${platform}.tar.gz"
+            cd "$dir"
+            tar cfz "/tmp/release/${archive}" libstorage.a libstorage.a.sha256
+            cd /tmp/release
+            
+            # Generate checksum
+            sha256sum "${archive}" > "${archive}.sha256"
+          done
+
+          # Create SHA256SUMS.txt
+          sha256sum *.tar.gz > SHA256SUMS.txt
+
+      - name: Create release
+        if: env.ACT != 'true'
+        uses: softprops/action-gh-release@v2
+        continue-on-error: true
+        with:
+          tag_name: ${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}
+          name: ${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}
+          body: |
+            Automated daily release
+
+            Commit: ${{ needs.check-updates.outputs.commit_hash }}
+            Branch: ${{ env.branch }}
+            Date: ${{ github.event.head_commit.timestamp }}
+
+            Artifacts:
+            - Linux AMD64: logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-linux-amd64.tar.gz
+            - Linux ARM64: logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-linux-arm64.tar.gz
+
+            Checksums: SHA256SUMS.txt
+          files: |
+            /tmp/release/*.tar.gz
+            /tmp/release/*.sha256
+            /tmp/release/SHA256SUMS.txt
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

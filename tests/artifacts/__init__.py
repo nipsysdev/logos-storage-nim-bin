@@ -1,0 +1,1 @@
+"""Tests for artifacts.py module."""
