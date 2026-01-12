@@ -10,7 +10,7 @@ help:
 	@echo "  make clean-all   - Clean everything including dist/ and logos-storage-nim/"
 	@echo "  make test-ci     - Test build.yml workflow locally (requires act)"
 	@echo "  make test-tests  - Test test.yml workflow locally (requires act)"
-	@echo "  make test-release- Test daily-release.yml workflow locally (requires act)"
+	@echo "  make test-release- Test release.yml workflow locally (requires act)"
 	@echo "  make help        - Show this help message"
 
 clean:
@@ -26,4 +26,4 @@ ci-test:
 	act -W .github/workflows/test.yml push
 
 ci-release:
-	act -W .github/workflows/daily-release.yml schedule
+	act -W .github/workflows/release.yml schedule

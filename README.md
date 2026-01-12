@@ -60,7 +60,7 @@ make clean        # Clean build artifacts
 make clean-all    # Clean everything including dist/ and logos-storage-nim/
 make ci-build     # Test build.yml workflow locally (requires act)
 make ci-test      # Test test.yml workflow locally (requires act)
-make ci-release   # Test daily-release.yml workflow locally (requires act)
+make ci-release   # Test release.yml workflow locally (requires act)
 make help         # Show all targets
 ```
 
