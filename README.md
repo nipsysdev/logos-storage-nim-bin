@@ -79,8 +79,8 @@ pytest --cov=src --cov-report=html
 
 ## CI/CD
 
-- **CI Build**: Runs on push/PR to `main` branch
-- **Daily Release**: Scheduled at 00:00 UTC, creates releases when new commits are detected
+- **Build**: Runs on push/PR to `main` branch
+- **Release**: Scheduled at 00:00 UTC, creates releases when new commits are detected
 - **Tests**: Runs on push/PR to `main` branch
 
 ## Versioning
