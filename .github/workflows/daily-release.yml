@@ -147,9 +147,6 @@ jobs:
             cd "$dir"
             tar cfz "/tmp/release/${archive}" libstorage.a libstorage.a.sha256
             cd /tmp/release
-            
-            # Generate checksum
-            sha256sum "${archive}" > "${archive}.sha256"
           done
 
           # Create SHA256SUMS.txt
@@ -163,20 +160,22 @@ jobs:
           tag_name: ${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}
           name: ${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}
           body: |
-            Automated daily release
+            Pre-built libstorage binaries
+
+            This release provides pre-compiled static libraries (libstorage.a),
+            built automatically from the latest commit in the logos-storage-nim repository.
 
             Commit: ${{ needs.check-updates.outputs.commit_hash }}
             Branch: ${{ env.branch }}
             Date: ${{ github.event.head_commit.timestamp }}
 
             Artifacts:
-            - Linux AMD64: logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-linux-amd64.tar.gz
-            - Linux ARM64: logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-linux-arm64.tar.gz
+            - Linux x86_64: logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-linux-amd64.tar.gz
+            - Linux AArch64: logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-linux-arm64.tar.gz
 
             Checksums: SHA256SUMS.txt
           files: |
             /tmp/release/*.tar.gz
-            /tmp/release/*.sha256
             /tmp/release/SHA256SUMS.txt
           draft: false
           prerelease: false
