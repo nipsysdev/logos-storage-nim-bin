@@ -29,19 +29,27 @@ jobs:
           LATEST_COMMIT=$(awk '{print $1}' latest.txt)
           LATEST_SHORT=$(echo $LATEST_COMMIT | cut -c1-7)
 
-          # Get previous release commit
-          PREVIOUS_RELEASE=$(gh release view --json tagName -q '.tagName' 2>/dev/null || echo "")
-          PREVIOUS_COMMIT=$(echo "$PREVIOUS_RELEASE" | cut -d'-' -f2)
+          # Get latest release from this repository
+          LATEST_RELEASE=$(gh release view --json body -q '.body' 2>/dev/null || echo "")
 
-          # Compare
-          if [ "$LATEST_COMMIT" != "$PREVIOUS_COMMIT" ]; then
+          # If no release exists, we should build
+          if [ -z "$LATEST_RELEASE" ]; then
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "commit_hash=$LATEST_COMMIT" >> $GITHUB_OUTPUT
+            echo "commit_short=$LATEST_SHORT" >> $GITHUB_OUTPUT
+            echo "No previous release found, building for commit: $LATEST_SHORT"
+            exit 0
+          fi
+
+          # Check if the release body contains the full commit hash
+          if echo "$LATEST_RELEASE" | grep -q "$LATEST_COMMIT"; then
+            echo "should_build=false" >> $GITHUB_OUTPUT
+            echo "Latest commit $LATEST_SHORT is already released"
+          else
             echo "should_build=true" >> $GITHUB_OUTPUT
             echo "commit_hash=$LATEST_COMMIT" >> $GITHUB_OUTPUT
             echo "commit_short=$LATEST_SHORT" >> $GITHUB_OUTPUT
             echo "New commit detected: $LATEST_SHORT"
-          else
-            echo "should_build=false" >> $GITHUB_OUTPUT
-            echo "No new commits since last release"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
