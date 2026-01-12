@@ -21,6 +21,13 @@ jobs:
       commit_hash: ${{ steps.check.outputs.commit_hash }}
       commit_short: ${{ steps.check.outputs.commit_short }}
     steps:
+      - name: Get latest release
+        id: latest_release
+        uses: pozetroninc/github-action-get-latest-release@master
+        with:
+          repository: ${{ github.repository }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Check for new commits
         id: check
         run: |
@@ -29,8 +36,8 @@ jobs:
           LATEST_COMMIT=$(awk '{print $1}' latest.txt)
           LATEST_SHORT=$(echo $LATEST_COMMIT | cut -c1-7)
 
-          # Get latest release from this repository
-          LATEST_RELEASE=$(gh release view --json body -q '.body' 2>/dev/null || echo "")
+          # Get latest release description from the action output
+          LATEST_RELEASE="${{ steps.latest_release.outputs.description }}"
 
           # If no release exists, we should build
           if [ -z "$LATEST_RELEASE" ]; then
@@ -51,8 +58,6 @@ jobs:
             echo "commit_short=$LATEST_SHORT" >> $GITHUB_OUTPUT
             echo "New commit detected: $LATEST_SHORT"
           fi
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
 
   # Matrix build
   build:
