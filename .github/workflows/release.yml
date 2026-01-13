@@ -155,14 +155,14 @@ jobs:
             dir=$(dirname "$lib")
             platform=$(basename "$dir")
             
-            # Create tar.gz archive
+            # Create tar.gz archive with libstorage.a, libstorage.h, and SHA256SUMS.txt
             archive="logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-${platform}.tar.gz"
             cd "$dir"
-            tar cfz "/tmp/release/${archive}" libstorage.a libstorage.a.sha256
+            tar cfz "/tmp/release/${archive}" libstorage.a libstorage.h SHA256SUMS.txt
             cd /tmp/release
           done
 
-          # Create SHA256SUMS.txt
+          # Create SHA256SUMS.txt for all archives
           sha256sum *.tar.gz > SHA256SUMS.txt
 
       - name: Create release
@@ -186,7 +186,12 @@ jobs:
             - Linux x86_64: logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-linux-amd64.tar.gz
             - Linux AArch64: logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-linux-arm64.tar.gz
 
-            Checksums: SHA256SUMS.txt
+            Each archive contains:
+            - libstorage.a: Static library
+            - libstorage.h: C header file
+            - SHA256SUMS.txt: Checksums for both files
+
+            Archive checksums: SHA256SUMS.txt
           files: |
             /tmp/release/*.tar.gz
             /tmp/release/SHA256SUMS.txt

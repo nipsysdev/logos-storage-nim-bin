@@ -19,8 +19,8 @@ from src.artifacts import (
     build_libstorage,
     collect_artifacts,
     combine_libraries,
-    generate_checksum,
-    verify_checksum
+    copy_header_file,
+    generate_sha256sums
 )
 
 
@@ -58,10 +58,14 @@ def main() -> None:
     dist_dir = Path("dist") / artifact_name
     dist_dir.mkdir(parents=True, exist_ok=True)
     
-    # Combine and checksum
+    # Combine libraries
     libstorage_path = combine_libraries(libraries, dist_dir)
-    generate_checksum(libstorage_path)
-    verify_checksum(libstorage_path)
+    
+    # Copy header file
+    copy_header_file(logos_storage_dir, dist_dir)
+    
+    # Generate SHA256SUMS.txt for all files
+    generate_sha256sums(dist_dir)
     
     print("=" * 42)
     print("Build completed successfully!")

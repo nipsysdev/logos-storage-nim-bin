@@ -245,3 +245,68 @@ def verify_checksum(artifact_path: Path) -> bool:
             f"  Expected: {expected_hash}\n"
             f"  Actual:   {actual_hash}"
         )
+
+
+def copy_header_file(logos_storage_dir: Path, output_dir: Path) -> Path:
+    """Copy libstorage.h from repository to output directory.
+    
+    Args:
+        logos_storage_dir: Path to the logos-storage-nim repository
+        output_dir: Path to the output directory where header should be copied
+        
+    Returns:
+        Path to the copied header file
+        
+    Raises:
+        FileNotFoundError: If libstorage.h is not found at expected location
+    """
+    header_source = logos_storage_dir / "library" / "libstorage.h"
+    
+    if not header_source.exists():
+        raise FileNotFoundError(
+            f"libstorage.h not found at {header_source}. "
+        )
+    
+    header_dest = output_dir / "libstorage.h"
+    shutil.copy2(header_source, header_dest)
+    print(f"✓ Copied libstorage.h to {header_dest}")
+    
+    return header_dest
+
+
+def generate_sha256sums(output_dir: Path) -> Path:
+    """Generate SHA256SUMS.txt for all files in output directory.
+    
+    Args:
+        output_dir: Path to the directory containing artifacts
+        
+    Returns:
+        Path to the generated SHA256SUMS.txt file
+    """
+    checksums_path = output_dir / "SHA256SUMS.txt"
+    
+    # Find all files to checksum (exclude the checksum file itself)
+    files_to_checksum = [
+        f for f in output_dir.iterdir()
+        if f.is_file() and f.name != "SHA256SUMS.txt"
+    ]
+    
+    if not files_to_checksum:
+        raise FileNotFoundError(f"No files found in {output_dir} to generate checksums")
+    
+    # Generate checksums using relative paths (just filenames)
+    checksums = []
+    original_cwd = Path.cwd()
+    try:
+        os.chdir(output_dir)
+        for file_path in sorted(files_to_checksum):
+            result = run_command(["sha256sum", file_path.name])
+            checksums.append(result.stdout.strip())
+    finally:
+        os.chdir(original_cwd)
+    
+    # Write checksums file
+    checksums_path.write_text("\n".join(checksums) + "\n")
+    print(f"✓ Generated SHA256SUMS.txt with {len(checksums)} entries")
+    
+    return checksums_path
