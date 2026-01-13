@@ -12,37 +12,25 @@ from src.repository import update_repository
 class TestUpdateRepository:
     """Test update_repository function."""
 
-    def test_update_repository_fetches_origin(self):
+    def test_update_repository_fetches_origin(self, mock_git_update_responses):
         """Test that update_repository fetches from origin."""
         repo_dir = Path("/tmp/test-repo")
         branch = "master"
         
         with patch("src.repository.run_command") as mock_run:
-            mock_run.side_effect = [
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # fetch
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # check local
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # check remote
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # checkout
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # pull
-            ]
+            mock_run.side_effect = mock_git_update_responses
             
             update_repository(repo_dir, branch)
         
         assert mock_run.call_args_list[0][0][0] == ["git", "-C", str(repo_dir), "fetch", "origin"]
 
-    def test_update_repository_checks_local_branch(self):
+    def test_update_repository_checks_local_branch(self, mock_git_update_responses):
         """Test that update_repository checks if local branch exists."""
         repo_dir = Path("/tmp/test-repo")
         branch = "master"
         
         with patch("src.repository.run_command") as mock_run:
-            mock_run.side_effect = [
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # fetch
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # check local
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # check remote
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # checkout
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # pull
-            ]
+            mock_run.side_effect = mock_git_update_responses
             
             update_repository(repo_dir, branch)
         
@@ -55,14 +43,17 @@ class TestUpdateRepository:
         repo_dir = Path("/tmp/test-repo")
         branch = "master"
         
+        # Custom responses where local branch doesn't exist
+        custom_responses = [
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # fetch
+            subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr=""),  # local branch not found
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # remote branch exists
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # checkout
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # pull
+        ]
+        
         with patch("src.repository.run_command") as mock_run:
-            mock_run.side_effect = [
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
-                subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr=""),
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
-            ]
+            mock_run.side_effect = custom_responses
             
             update_repository(repo_dir, branch)
         
@@ -75,49 +66,40 @@ class TestUpdateRepository:
         repo_dir = Path("/tmp/test-repo")
         branch = "nonexistent"
         
+        # Custom responses where branch doesn't exist anywhere
+        custom_responses = [
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # fetch
+            subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr=""),  # local not found
+            subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr=""),  # remote not found
+        ]
+        
         with patch("src.repository.run_command") as mock_run:
-            mock_run.side_effect = [
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
-                subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr=""),
-                subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr=""),
-            ]
+            mock_run.side_effect = custom_responses
             
             with pytest.raises(ValueError) as exc_info:
                 update_repository(repo_dir, branch)
         
         assert "Branch 'nonexistent' not found" in str(exc_info.value)
 
-    def test_update_repository_checkouts_branch(self):
+    def test_update_repository_checkouts_branch(self, mock_git_update_responses):
         """Test that update_repository checks out the specified branch."""
         repo_dir = Path("/tmp/test-repo")
         branch = "develop"
         
         with patch("src.repository.run_command") as mock_run:
-            mock_run.side_effect = [
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # fetch
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # check local
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # check remote
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # checkout
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # pull
-            ]
+            mock_run.side_effect = mock_git_update_responses
             
             update_repository(repo_dir, branch)
         
         assert mock_run.call_args_list[3][0][0] == ["git", "-C", str(repo_dir), "checkout", branch]
 
-    def test_update_repository_pulls_from_origin(self):
+    def test_update_repository_pulls_from_origin(self, mock_git_update_responses):
         """Test that update_repository pulls from origin for the specified branch."""
         repo_dir = Path("/tmp/test-repo")
         branch = "master"
         
         with patch("src.repository.run_command") as mock_run:
-            mock_run.side_effect = [
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # fetch
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # check local
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # check remote
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # checkout
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # pull
-            ]
+            mock_run.side_effect = mock_git_update_responses
             
             update_repository(repo_dir, branch)
         

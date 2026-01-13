@@ -11,9 +11,8 @@ from src.artifacts import collect_artifacts
 class TestCollectArtifacts:
     """Test collect_artifacts function."""
 
-    def test_collect_artifacts_finds_all_libraries(self, sample_artifact_paths):
-        with patch("src.artifacts.check_artifact_compatibility", return_value=True):
-            libraries = collect_artifacts(sample_artifact_paths, "x86_64")
+    def test_collect_artifacts_finds_all_libraries(self, sample_artifact_paths, mock_artifact_collection_setup):
+        libraries = collect_artifacts(sample_artifact_paths, "x86_64")
         
         assert len(libraries) == 6
 
@@ -33,9 +32,8 @@ class TestCollectArtifacts:
         
         assert "not compatible with target architecture" in str(exc_info.value)
 
-    def test_collect_artifacts_uses_release_leopard(self, sample_artifact_paths):
-        with patch("src.artifacts.check_artifact_compatibility", return_value=True):
-            libraries = collect_artifacts(sample_artifact_paths, "x86_64")
+    def test_collect_artifacts_uses_release_leopard(self, sample_artifact_paths, mock_artifact_collection_setup):
+        libraries = collect_artifacts(sample_artifact_paths, "x86_64")
         
         leopard_libs = [lib for lib in libraries if "liblibleopard.a" in str(lib)]
         assert len(leopard_libs) == 1

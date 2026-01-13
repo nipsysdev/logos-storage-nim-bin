@@ -13,42 +13,26 @@ from src.repository import CommitInfo
 class TestMainOutput:
     """Test main function output formatting and artifact naming."""
 
-    def test_main_creates_correct_artifact_name(self):
+    def test_main_creates_correct_artifact_name(self, mock_build_setup):
         """Test that main() creates correct artifact directory name with branch, commit, and platform."""
-        with patch("build.get_platform_identifier", return_value="linux-arm64"):
-            with patch("build.ensure_logos_storage_repo") as mock_repo:
-                mock_repo.return_value = (Path("logos-storage-nim"), CommitInfo("abc123def456", "abc123d", "develop"))
-                with patch("build.get_parallel_jobs", return_value=4):
-                    with patch("build.get_host_triple", return_value="aarch64"):
-                        with patch("build.configure_reproducible_environment"):
-                            with patch("build.build_libstorage"):
-                                with patch("build.collect_artifacts", return_value=[]):
-                                    with patch("build.combine_libraries") as mock_combine:
-                                        mock_combine.return_value = Path("dist/libstorage.a")
-                                        with patch("build.generate_checksum"):
-                                            with patch("build.verify_checksum"):
-                                                main()
-                    
-                    call_args = mock_combine.call_args[0]
-                    dist_dir = call_args[1]
-                    assert "develop" in str(dist_dir)
-                    assert "abc123d" in str(dist_dir)
-                    assert "linux-arm64" in str(dist_dir)
+        mock_build_setup["mock_platform"].return_value = "linux-arm64"
+        mock_build_setup["mock_triple"].return_value = "aarch64"
+        mock_build_setup["mock_repo"].return_value = (
+            Path("logos-storage-nim"),
+            CommitInfo("abc123def456", "abc123d", "develop")
+        )
+        
+        main()
+        
+        call_args = mock_build_setup["mock_combine"].call_args[0]
+        dist_dir = call_args[1]
+        assert "develop" in str(dist_dir)
+        assert "abc123d" in str(dist_dir)
+        assert "linux-arm64" in str(dist_dir)
 
-    def test_main_prints_build_info(self, capsys):
+    def test_main_prints_build_info(self, mock_build_setup, capsys):
         """Test that main() prints build information to stdout."""
-        with patch("build.get_platform_identifier", return_value="linux-amd64"):
-            with patch("build.ensure_logos_storage_repo") as mock_repo:
-                mock_repo.return_value = (Path("logos-storage-nim"), CommitInfo("abc123def456", "abc123d", "master"))
-                with patch("build.get_parallel_jobs", return_value=4):
-                    with patch("build.get_host_triple", return_value="x86_64"):
-                        with patch("build.configure_reproducible_environment"):
-                            with patch("build.build_libstorage"):
-                                with patch("build.collect_artifacts", return_value=[]):
-                                    with patch("build.combine_libraries", return_value=Path("dist/libstorage.a")):
-                                        with patch("build.generate_checksum"):
-                                            with patch("build.verify_checksum"):
-                                                main()
+        main()
         
         captured = capsys.readouterr()
         assert "Building logos-storage-nim" in captured.out
@@ -69,17 +53,6 @@ class TestMainErrorHandling:
         
         assert str(exc_info.value) == "Test error"
 
-    def test_main_exits_on_success(self):
+    def test_main_exits_on_success(self, mock_build_setup):
         """Test that main() completes successfully without raising exceptions."""
-        with patch("build.get_platform_identifier", return_value="linux-amd64"):
-            with patch("build.ensure_logos_storage_repo") as mock_repo:
-                mock_repo.return_value = (Path("logos-storage-nim"), CommitInfo("abc123", "abc123", "master"))
-                with patch("build.get_parallel_jobs", return_value=4):
-                    with patch("build.get_host_triple", return_value="x86_64"):
-                        with patch("build.configure_reproducible_environment"):
-                            with patch("build.build_libstorage"):
-                                with patch("build.collect_artifacts", return_value=[]):
-                                    with patch("build.combine_libraries", return_value=Path("dist/libstorage.a")):
-                                        with patch("build.generate_checksum"):
-                                            with patch("build.verify_checksum"):
-                                                main()
+        main()

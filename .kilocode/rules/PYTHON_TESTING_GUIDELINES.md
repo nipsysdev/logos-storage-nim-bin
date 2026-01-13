@@ -435,7 +435,127 @@ def test_main_propagates_exception_from_build_libstorage(self):
 - For test classes, use docstrings to explain the scope or purpose of the test group
 - When in doubt, omit the docstring if it doesn't add value
 
-### 4. Create Helper Functions (DRY Principle)
+### 4. Extract Common Mocking/Patching Logic into Fixtures
+
+When multiple tests use the same mocking/patching setup, extract the common logic into reusable fixtures in `conftest.py`. This reduces duplication and makes tests more maintainable.
+
+**❌ BAD: Repeated patching across multiple tests**
+
+```python
+# test_build_main.py
+def test_main_calls_get_platform_identifier(self):
+    with patch("build.get_platform_identifier", return_value="linux-amd64") as mock_platform:
+        with patch("build.configure_reproducible_environment"):
+            with patch("build.ensure_logos_storage_repo") as mock_repo:
+                mock_repo.return_value = (Path("logos-storage-nim"), CommitInfo("abc123", "abc123d", "master"))
+                with patch("build.get_parallel_jobs", return_value=4):
+                    with patch("build.build_libstorage"):
+                        with patch("build.get_host_triple", return_value="x86_64"):
+                            with patch("build.collect_artifacts", return_value=[]):
+                                with patch("build.combine_libraries", return_value=Path("dist/libstorage.a")):
+                                    with patch("build.copy_header_file"):
+                                        with patch("build.generate_sha256sums"):
+                                            main()
+
+    mock_platform.assert_called_once()
+
+def test_main_calls_configure_reproducible_environment(self):
+    with patch("build.get_platform_identifier", return_value="linux-amd64"):
+        with patch("build.configure_reproducible_environment") as mock_config:
+            with patch("build.ensure_logos_storage_repo") as mock_repo:
+                mock_repo.return_value = (Path("logos-storage-nim"), CommitInfo("abc123", "abc123d", "master"))
+                with patch("build.get_parallel_jobs", return_value=4):
+                    with patch("build.build_libstorage"):
+                        with patch("build.get_host_triple", return_value="x86_64"):
+                            with patch("build.collect_artifacts", return_value=[]):
+                                with patch("build.combine_libraries", return_value=Path("dist/libstorage.a")):
+                                    with patch("build.copy_header_file"):
+                                        with patch("build.generate_sha256sums"):
+                                            main()
+
+    mock_config.assert_called_once()
+```
+
+**✅ GOOD: Extract common setup into fixture**
+
+```python
+# tests/conftest.py
+@pytest.fixture
+def mock_build_setup():
+    """Fixture that provides common mocks for build.py main() function.
+
+    This fixture sets up all the common patches needed for testing the main()
+    function, reducing duplication across tests.
+    """
+    from unittest.mock import patch
+    from pathlib import Path
+    from src.repository import CommitInfo
+
+    logos_storage_dir = Path("logos-storage-nim")
+    mock_commit_info = CommitInfo("abc123def456789abc123def456789abc123def", "abc123d", "master")
+
+    with patch("build.get_platform_identifier", return_value="linux-amd64") as mock_platform:
+        with patch("build.configure_reproducible_environment") as mock_config:
+            with patch("build.ensure_logos_storage_repo") as mock_repo:
+                mock_repo.return_value = (logos_storage_dir, mock_commit_info)
+                with patch("build.get_parallel_jobs", return_value=4) as mock_jobs:
+                    with patch("build.build_libstorage") as mock_build:
+                        with patch("build.get_host_triple", return_value="x86_64") as mock_triple:
+                            with patch("build.collect_artifacts", return_value=[]) as mock_collect:
+                                with patch("build.combine_libraries", return_value=Path("dist/libstorage.a")) as mock_combine:
+                                    with patch("build.copy_header_file") as mock_copy:
+                                        with patch("build.generate_sha256sums") as mock_checksums:
+                                            yield {
+                                                "mock_platform": mock_platform,
+                                                "mock_config": mock_config,
+                                                "mock_repo": mock_repo,
+                                                "mock_jobs": mock_jobs,
+                                                "mock_build": mock_build,
+                                                "mock_triple": mock_triple,
+                                                "mock_collect": mock_collect,
+                                                "mock_combine": mock_combine,
+                                                "mock_copy": mock_copy,
+                                                "mock_checksums": mock_checksums,
+                                                "logos_storage_dir": logos_storage_dir,
+                                                "mock_commit_info": mock_commit_info,
+                                            }
+
+# test_build_main.py
+def test_main_calls_get_platform_identifier(self, mock_build_setup):
+    main()
+
+    mock_build_setup["mock_platform"].assert_called_once()
+
+def test_main_calls_configure_reproducible_environment(self, mock_build_setup):
+    main()
+
+    mock_build_setup["mock_config"].assert_called_once()
+```
+
+**Benefits of Extracting Common Mocking Logic:**
+
+- ✅ **Reduced Duplication**: Eliminates hundreds of lines of repetitive patching code
+- ✅ **Improved Maintainability**: Changes to mock setup only need to be made in one place
+- ✅ **Better Test Focus**: Tests focus on assertions rather than setup
+- ✅ **Consistency**: All tests use the same mock configuration
+- ✅ **Easier to Add Tests**: New tests can reuse existing fixtures
+
+**When to Create Fixtures:**
+
+- When 3 or more tests use the same patching setup
+- When patching setup is complex (5+ nested patches)
+- When tests are in the same test file or module
+- When the setup is reusable across multiple test files
+
+**Guidelines:**
+
+- Name fixtures descriptively (e.g., `mock_build_setup`, `mock_git_clone_responses`)
+- Return a dictionary of mocks for easy access in tests
+- Document what the fixture provides in the docstring
+- Keep fixtures focused on a single concern
+- Use `yield` instead of `return` for context manager fixtures
+
+### 5. Create Helper Functions (DRY Principle)
 
 **❌ BAD: Repeated setup code**
 
@@ -964,17 +1084,53 @@ def test_format_date_returns_correct_result(self):
 
 ### 2. Writing Tests That Don't Test Anything
 
+**❌ BAD: Test doesn't actually test the code**
+
 ```python
-# ❌ BAD: Test doesn't actually test the code
 def test_addition(self):
     result = 2 + 2  # This doesn't use the codebase!
     assert result == 4
+```
 
-# ✅ GOOD: Test actually tests the code
+**❌ BAD: Test has no assertions**
+
+```python
+def test_main_calls_verify_checksum(self, mock_build_setup):
+    """Test that main() calls copy_header_file and generate_sha256sums."""
+    main()
+    # No assertions! This test doesn't verify anything
+```
+
+**✅ GOOD: Test actually tests the code**
+
+```python
 def test_calculator_add(self):
     calculator = Calculator()
     result = calculator.add(2, 2)
     assert result == 4
+```
+
+**✅ GOOD: Test has proper assertions**
+
+```python
+def test_main_calls_verify_checksum(self, mock_build_setup):
+    """Test that main() calls copy_header_file and generate_sha256sums."""
+    main()
+
+    # Verify the functions were called
+    mock_build_setup["mock_copy"].assert_called_once()
+    mock_build_setup["mock_checksums"].assert_called_once()
+```
+
+**Important Note**: Every test must have at least one assertion (either `assert` statements, mock assertions like `assert_called_once()`, or `pytest.raises()` for exception testing). Tests without assertions provide no value and should either be removed or have assertions added.
+
+**Exception**: Tests that intentionally verify "no exception raised" are valid and don't need explicit assertions:
+
+```python
+# ✅ GOOD: Valid test pattern - verifies no exception is raised
+def test_main_exits_on_success(self, mock_build_setup):
+    """Test that main() completes successfully without raising exceptions."""
+    main()  # If main() raises an exception, the test fails automatically
 ```
 
 ### 3. Overly Complex Tests

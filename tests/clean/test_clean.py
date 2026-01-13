@@ -12,31 +12,27 @@ from clean import clean_all, clean_build_only, main
 class TestCleanAll:
     """Test clean_all function."""
 
-    def test_clean_all_removes_dist_directory(self, mock_shutil_rmtree):
+    def test_clean_all_removes_dist_directory(self, mock_clean_setup, mock_shutil_rmtree):
         """Test that clean_all removes the dist directory."""
-        with patch("pathlib.Path.exists", return_value=True):
-            clean_all()
+        clean_all()
         
         # Verify dist directory was removed
         dist_calls = [call for call in mock_shutil_rmtree.call_args_list if "dist" in str(call[0][0])]
         assert len(dist_calls) == 1
 
-    def test_clean_all_removes_logos_storage_directory(self, mock_shutil_rmtree):
+    def test_clean_all_removes_logos_storage_directory(self, mock_clean_setup, mock_shutil_rmtree):
         """Test that clean_all removes the logos-storage-nim directory."""
-        with patch("pathlib.Path.exists", return_value=True):
-            clean_all()
+        clean_all()
         
         # Verify logos-storage-nim directory was removed (exact match)
         repo_calls = [call for call in mock_shutil_rmtree.call_args_list if call[0][0] == Path("logos-storage-nim")]
         assert len(repo_calls) == 1
 
-    def test_clean_all_calls_clean_build_artifacts(self, mock_shutil_rmtree):
+    def test_clean_all_calls_clean_build_artifacts(self, mock_clean_setup, mock_shutil_rmtree):
         """Test that clean_all calls clean_build_artifacts."""
-        with patch("pathlib.Path.exists", return_value=True):
-            with patch("clean.clean_build_artifacts") as mock_clean:
-                clean_all()
+        clean_all()
         
-        mock_clean.assert_called_once()
+        mock_clean_setup["mock_clean"].assert_called_once()
 
     def test_clean_all_skips_build_artifacts_when_repo_missing(self, mock_shutil_rmtree):
         """Test that clean_all skips clean_build_artifacts when repo directory doesn't exist."""
@@ -70,11 +66,9 @@ class TestCleanAll:
         # Verify only dist was removed
         assert mock_shutil_rmtree.call_count == 1
 
-    def test_clean_all_removes_all_directories(self, mock_shutil_rmtree):
+    def test_clean_all_removes_all_directories(self, mock_clean_setup, mock_shutil_rmtree):
         """Test that clean_all removes both dist and logos-storage-nim directories."""
-        with patch("pathlib.Path.exists", return_value=True):
-            with patch("clean.clean_build_artifacts"):
-                clean_all()
+        clean_all()
         
         # Verify both directories were removed
         assert mock_shutil_rmtree.call_count == 2
@@ -83,13 +77,11 @@ class TestCleanAll:
 class TestCleanBuildOnly:
     """Test clean_build_only function."""
 
-    def test_clean_build_only_calls_clean_build_artifacts(self):
+    def test_clean_build_only_calls_clean_build_artifacts(self, mock_clean_setup):
         """Test that clean_build_only calls clean_build_artifacts."""
-        with patch("pathlib.Path.exists", return_value=True):
-            with patch("clean.clean_build_artifacts") as mock_clean:
-                clean_build_only()
+        clean_build_only()
         
-        mock_clean.assert_called_once()
+        mock_clean_setup["mock_clean"].assert_called_once()
 
     def test_clean_build_only_skips_when_repo_missing(self, capsys):
         """Test that clean_build_only skips gracefully when repo directory doesn't exist."""
@@ -104,13 +96,11 @@ class TestCleanBuildOnly:
         captured = capsys.readouterr()
         assert "logos-storage-nim directory not found, skipping clean" in captured.out
 
-    def test_clean_build_only_passes_correct_directory(self):
+    def test_clean_build_only_passes_correct_directory(self, mock_clean_setup):
         """Test that clean_build_only passes correct directory to clean_build_artifacts."""
-        with patch("pathlib.Path.exists", return_value=True):
-            with patch("clean.clean_build_artifacts") as mock_clean:
-                clean_build_only()
+        clean_build_only()
         
-        call_arg = mock_clean.call_args[0][0]
+        call_arg = mock_clean_setup["mock_clean"].call_args[0][0]
         assert call_arg == Path("logos-storage-nim")
 
 
