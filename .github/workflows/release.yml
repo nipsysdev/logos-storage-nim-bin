@@ -24,6 +24,7 @@ jobs:
       - name: Get latest release
         id: latest_release
         uses: pozetroninc/github-action-get-latest-release@master
+        continue-on-error: true
         with:
           repository: ${{ github.repository }}
           token: ${{ secrets.GITHUB_TOKEN }}
