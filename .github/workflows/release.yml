@@ -154,10 +154,11 @@ jobs:
           # Find all libstorage.a files and create archives
           find . -name "libstorage.a" -type f | while read lib; do
             dir=$(dirname "$lib")
-            platform=$(basename "$dir")
+            dir_name=$(basename "$dir")
             
-            # Create tar.gz archive with libstorage.a, libstorage.h, and SHA256SUMS.txt
-            archive="logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-${platform}.tar.gz"
+            # Directory name is already in the correct format: {branch}-{commit_short}-{platform}
+            # Use it directly to create the archive name
+            archive="logos-storage-nim-${dir_name}.tar.gz"
             cd "$dir"
             tar cfz "/tmp/release/${archive}" libstorage.a libstorage.h SHA256SUMS.txt
             cd /tmp/release
