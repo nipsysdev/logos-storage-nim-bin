@@ -33,12 +33,12 @@ class TestBuildArtifactOperations:
         # Verify collect_artifacts was called
         mock_build_setup["mock_collect"].assert_called_once()
 
-    def test_main_calls_combine_libraries_from_artifacts_module(self, mock_build_setup):
-        """Test that main() calls combine_libraries from artifacts module."""
+    def test_main_calls_copy_libraries_from_artifacts_module(self, mock_build_setup):
+        """Test that main() calls copy_libraries from artifacts module."""
         main()
         
-        # Verify combine_libraries was called
-        mock_build_setup["mock_combine"].assert_called_once()
+        # Verify copy_libraries was called
+        mock_build_setup["mock_copy_libs"].assert_called_once()
 
     def test_main_calls_generate_checksum_from_artifacts_module(self, mock_build_setup):
         """Test that main() calls copy_header_file and generate_sha256sums from artifacts module."""
@@ -78,16 +78,16 @@ class TestBuildArtifactOperations:
             mock_build_setup["logos_storage_dir"], "aarch64"
         )
 
-    def test_main_passes_correct_arguments_to_combine_libraries(self, mock_build_setup):
-        """Test that main() passes correct arguments to combine_libraries."""
+    def test_main_passes_correct_arguments_to_copy_libraries(self, mock_build_setup):
+        """Test that main() passes correct arguments to copy_libraries."""
         libraries = [Path("lib1.a"), Path("lib2.a"), Path("lib3.a")]
         mock_build_setup["mock_collect"].return_value = libraries
         
         main()
         
-        # Verify combine_libraries was called with correct arguments
-        mock_build_setup["mock_combine"].assert_called_once()
-        call_args = mock_build_setup["mock_combine"].call_args
+        # Verify copy_libraries was called with correct arguments
+        mock_build_setup["mock_copy_libs"].assert_called_once()
+        call_args = mock_build_setup["mock_copy_libs"].call_args
         assert call_args[0][0] == libraries
 
     def test_main_passes_correct_arguments_to_generate_checksum(self, mock_build_setup):
@@ -114,7 +114,7 @@ class TestBuildArtifactOperations:
         call_order = [
             mock_build_setup["mock_build"],
             mock_build_setup["mock_collect"],
-            mock_build_setup["mock_combine"],
+            mock_build_setup["mock_copy_libs"],
             mock_build_setup["mock_copy"],
             mock_build_setup["mock_checksums"]
         ]

@@ -20,13 +20,19 @@ Extract and verify:
 
 ```bash
 tar -xzf logos-storage-nim-master-60861d6a-linux-amd64.tar.gz
-sha256sum -c libstorage.a.sha256
+sha256sum -c SHA256SUMS.txt
 ```
 
 The archive includes:
 
-- `libstorage.a` - Combined static library with all dependencies
-- `libstorage.a.sha256` - SHA256 checksum
+- `libstorage.a` - Main storage library
+- `libnatpmp.a` - NAT-PMP library
+- `libminiupnpc.a` - MiniUPnP library
+- `libcircom_compat_ffi.a` - Circom compatibility library
+- `libbacktrace.a` - Backtrace library
+- `libleopard.a` - Leopard erasure coding library
+- `libstorage.h` - Header file
+- `SHA256SUMS.txt` - SHA256 checksums for all files
 
 ## Building from Source
 

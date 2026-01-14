@@ -20,7 +20,7 @@ def mock_build_setup():
                     with patch("build.build_libstorage") as mock_build:
                         with patch("build.get_host_triple", return_value="x86_64") as mock_triple:
                             with patch("build.collect_artifacts", return_value=[]) as mock_collect:
-                                with patch("build.combine_libraries", return_value=Path("dist/libstorage.a")) as mock_combine:
+                                with patch("build.copy_libraries", return_value=[]) as mock_copy_libs:
                                     with patch("build.copy_header_file") as mock_copy:
                                         with patch("build.generate_sha256sums") as mock_checksums:
                                             with patch("pathlib.Path.mkdir") as mock_mkdir:
@@ -32,7 +32,7 @@ def mock_build_setup():
                                                     "mock_build": mock_build,
                                                     "mock_triple": mock_triple,
                                                     "mock_collect": mock_collect,
-                                                    "mock_combine": mock_combine,
+                                                    "mock_copy_libs": mock_copy_libs,
                                                     "mock_copy": mock_copy,
                                                     "mock_checksums": mock_checksums,
                                                     "mock_mkdir": mock_mkdir,

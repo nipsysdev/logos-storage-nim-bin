@@ -18,7 +18,7 @@ from src.artifacts import (
     clean_build_artifacts,
     build_libstorage,
     collect_artifacts,
-    combine_libraries,
+    copy_libraries,
     copy_header_file,
     generate_sha256sums
 )
@@ -58,8 +58,8 @@ def main() -> None:
     dist_dir = Path("dist") / artifact_name
     dist_dir.mkdir(parents=True, exist_ok=True)
     
-    # Combine libraries
-    libstorage_path = combine_libraries(libraries, dist_dir)
+    # Copy libraries individually
+    copied_libraries = copy_libraries(libraries, dist_dir)
     
     # Copy header file
     copy_header_file(logos_storage_dir, dist_dir)

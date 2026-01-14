@@ -24,7 +24,7 @@ class TestMainOutput:
         
         main()
         
-        call_args = mock_build_setup["mock_combine"].call_args[0]
+        call_args = mock_build_setup["mock_copy_libs"].call_args[0]
         dist_dir = call_args[1]
         assert "develop" in str(dist_dir)
         assert "abc123d" in str(dist_dir)

@@ -121,17 +121,18 @@ jobs:
         run: |
           echo "Verifying artifacts..."
           if [ -d "dist" ]; then
-            find dist -name "libstorage.a" -type f | while read lib; do
+            # List all library files
+            find dist -name "*.a" -type f | while read lib; do
               echo "Found: $lib"
               ls -lh "$lib"
-              
-              # Verify checksum
-              checksum_file="${lib}.sha256"
-              if [ -f "$checksum_file" ]; then
-                echo "Verifying checksum..."
-                sha256sum -c "$checksum_file"
-              fi
             done
+            
+            # Verify SHA256SUMS.txt
+            find dist -name "SHA256SUMS.txt" -type f | while read checksum_file; do
+              echo "Verifying checksums in: $checksum_file"
+              sha256sum -c "$checksum_file"
+            done
+            
             echo ""
             echo "Artifacts are available in: $(pwd)/dist/"
           else
@@ -158,16 +159,15 @@ jobs:
         run: |
           cd /tmp/release
 
-          # Find all libstorage.a files and create archives
-          find . -name "libstorage.a" -type f | while read lib; do
-            dir=$(dirname "$lib")
+          # Find all directories and create archives
+          for dir in */; do
             dir_name=$(basename "$dir")
             
             # Directory name is already in the correct format: {branch}-{commit_short}-{platform}
             # Use it directly to create the archive name
             archive="logos-storage-nim-${dir_name}.tar.gz"
             cd "$dir"
-            tar cfz "/tmp/release/${archive}" libstorage.a libstorage.h SHA256SUMS.txt
+            tar cfz "/tmp/release/${archive}" *.a libstorage.h SHA256SUMS.txt
             cd /tmp/release
           done
 
@@ -184,7 +184,7 @@ jobs:
           body: |
             Pre-built libstorage binaries
 
-            This release provides pre-compiled static libraries (libstorage.a),
+            This release provides pre-compiled static libraries,
             built automatically from the latest commit in the logos-storage-nim repository.
 
             Commit: ${{ needs.check-updates.outputs.commit_hash }}
@@ -196,9 +196,14 @@ jobs:
             - Linux AArch64: logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-linux-arm64.tar.gz
 
             Each archive contains:
-            - libstorage.a: Static library
+            - libstorage.a: Main storage library
+            - libnatpmp.a: NAT-PMP library
+            - libminiupnpc.a: MiniUPnP library
+            - libcircom_compat_ffi.a: Circom compatibility library
+            - libbacktrace.a: Backtrace library
+            - libleopard.a: Leopard erasure coding library
             - libstorage.h: C header file
-            - SHA256SUMS.txt: Checksums for both files
+            - SHA256SUMS.txt: Checksums for all files
 
             Archive checksums: SHA256SUMS.txt
           files: |

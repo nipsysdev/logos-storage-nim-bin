@@ -210,26 +210,30 @@ def collect_artifacts(
     return libraries
 
 
-def combine_libraries(libraries: List[Path], output_dir: Path) -> Path:
-    """Combine multiple static libraries into one."""
-    print(f"Combining {len(libraries)} libraries...")
+def copy_libraries(libraries: List[Path], output_dir: Path) -> List[Path]:
+    """Copy individual static libraries to output directory.
     
-    output_path = output_dir / "libstorage.a"
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    Args:
+        libraries: List of Path objects for all libraries to copy
+        output_dir: Path to the output directory
+        
+    Returns:
+        List of Path objects for all copied libraries
+        
+    Raises:
+        FileNotFoundError: If any library cannot be copied
+    """
+    print(f"Copying {len(libraries)} libraries...")
+    copied_libraries = []
     
-    # Build ar command
-    cmd = ["ar", "rcs", str(output_path)] + [str(lib) for lib in libraries]
-    run_command(cmd)
+    for lib_path in libraries:
+        dest_path = output_dir / lib_path.name
+        shutil.copy2(lib_path, dest_path)
+        copied_libraries.append(dest_path)
+        print(f"✓ Copied {lib_path.name} to {dest_path}")
     
-    # Verify
-    if output_path.exists():
-        size = output_path.stat().st_size
-        print(f"✓ Successfully created libstorage.a")
-        print(f"  Library size: {size} bytes")
-    else:
-        raise FileNotFoundError(f"Combined library not found at {output_path}")
-    
-    return output_path
+    print(f"✓ Successfully copied {len(copied_libraries)} libraries")
+    return copied_libraries
 
 
 def generate_checksum(artifact_path: Path) -> None:

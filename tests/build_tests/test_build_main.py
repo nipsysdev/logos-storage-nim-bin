@@ -79,8 +79,8 @@ class TestMainOrchestration:
             mock_build_setup["logos_storage_dir"], "x86_64"
         )
 
-    def test_main_calls_combine_libraries_with_correct_arguments(self, mock_build_setup):
-        """Test that main() calls combine_libraries() with correct libraries and output path."""
+    def test_main_calls_copy_libraries_with_correct_arguments(self, mock_build_setup):
+        """Test that main() calls copy_libraries() with correct libraries and output path."""
         libraries = [Path("lib1.a"), Path("lib2.a")]
         mock_build_setup["mock_collect"].return_value = libraries
         
@@ -88,8 +88,8 @@ class TestMainOrchestration:
         
         # Verify the output directory path is correct
         expected_dist_dir = Path("dist") / "master-abc123d-linux-amd64"
-        mock_build_setup["mock_combine"].assert_called_once()
-        call_args = mock_build_setup["mock_combine"].call_args
+        mock_build_setup["mock_copy_libs"].assert_called_once()
+        call_args = mock_build_setup["mock_copy_libs"].call_args
         assert call_args[0][0] == libraries
         assert call_args[0][1] == expected_dist_dir
 
@@ -120,7 +120,7 @@ class TestMainOrchestration:
             call.build_libstorage(mock_build_setup["logos_storage_dir"], 4),
             call.get_host_triple(),
             call.collect_artifacts(mock_build_setup["logos_storage_dir"], "x86_64"),
-            call.combine_libraries([], Path("dist/master-abc123d-linux-amd64")),
+            call.copy_libraries([], Path("dist/master-abc123d-linux-amd64")),
             call.copy_header_file(mock_build_setup["logos_storage_dir"], Path("dist/master-abc123d-linux-amd64")),
             call.generate_sha256sums(Path("dist/master-abc123d-linux-amd64")),
         ]
@@ -133,7 +133,7 @@ class TestMainOrchestration:
         assert mock_build_setup["mock_build"].call_args_list == [expected_calls[4]]
         assert mock_build_setup["mock_triple"].call_args_list == [expected_calls[5]]
         assert mock_build_setup["mock_collect"].call_args_list == [expected_calls[6]]
-        assert mock_build_setup["mock_combine"].call_args_list == [expected_calls[7]]
+        assert mock_build_setup["mock_copy_libs"].call_args_list == [expected_calls[7]]
         assert mock_build_setup["mock_copy"].call_args_list == [expected_calls[8]]
         assert mock_build_setup["mock_checksums"].call_args_list == [expected_calls[9]]
 
@@ -182,14 +182,14 @@ class TestMainOrchestration:
         
         assert str(exc_info.value) == "Collect error"
 
-    def test_main_propagates_exception_from_combine_libraries(self, mock_build_setup):
-        """Test that main() propagates exceptions from combine_libraries()."""
-        mock_build_setup["mock_combine"].side_effect = RuntimeError("Combine error")
+    def test_main_propagates_exception_from_copy_libraries(self, mock_build_setup):
+        """Test that main() propagates exceptions from copy_libraries()."""
+        mock_build_setup["mock_copy_libs"].side_effect = RuntimeError("Copy error")
         
         with pytest.raises(RuntimeError) as exc_info:
             main()
         
-        assert str(exc_info.value) == "Combine error"
+        assert str(exc_info.value) == "Copy error"
 
     def test_main_propagates_exception_from_generate_checksum(self, mock_build_setup):
         """Test that main() propagates exceptions from copy_header_file()."""
