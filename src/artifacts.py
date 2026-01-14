@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import List
+from typing import List, Callable, Optional
 
 from src.utils import run_command
 
@@ -146,8 +146,30 @@ def check_artifact_compatibility(artifact_path: Path, target: str) -> bool:
     return False
 
 
-def collect_artifacts(logos_storage_dir: Path, target: str) -> List[Path]:
-    """Collect all required library artifacts."""
+def collect_artifacts(
+    logos_storage_dir: Path,
+    target: str,
+    path_exists: Optional[Callable[[Path], bool]] = None
+) -> List[Path]:
+    """Collect all required library artifacts.
+    
+    Args:
+        logos_storage_dir: Path to the logos-storage-nim repository
+        target: Target architecture (e.g., "x86_64", "aarch64")
+        path_exists: Optional function to check if a path exists.
+                    If None, uses the default Path.exists() method.
+                    This parameter is primarily for testing purposes.
+    
+    Returns:
+        List of Path objects for all collected libraries
+    
+    Raises:
+        FileNotFoundError: If any required library is not found
+        ValueError: If any library is incompatible with the target architecture
+    """
+    if path_exists is None:
+        path_exists = lambda p: p.exists()
+    
     libraries = []
     
     # Define all libraries to collect
@@ -161,7 +183,7 @@ def collect_artifacts(logos_storage_dir: Path, target: str) -> List[Path]:
     
     # Check standard libraries
     for name, path in artifact_paths:
-        if not path.exists():
+        if not path_exists(path):
             raise FileNotFoundError(f"{name} not found at {path}")
         if not check_artifact_compatibility(path, target):
             raise ValueError(f"{name} is not compatible with target architecture: {target}")
@@ -172,12 +194,12 @@ def collect_artifacts(logos_storage_dir: Path, target: str) -> List[Path]:
     leopard_release = logos_storage_dir / "nimcache" / "release" / "libstorage" / "vendor_leopard" / "liblibleopard.a"
     leopard_debug = logos_storage_dir / "nimcache" / "debug" / "libstorage" / "vendor_leopard" / "liblibleopard.a"
     
-    if leopard_release.exists():
+    if path_exists(leopard_release):
         if not check_artifact_compatibility(leopard_release, target):
             raise ValueError(f"liblibleopard.a (release) is not compatible with target architecture: {target}")
         libraries.append(leopard_release)
         print(f"✓ Found liblibleopard.a (release, compatible with {target})")
-    elif leopard_debug.exists():
+    elif path_exists(leopard_debug):
         if not check_artifact_compatibility(leopard_debug, target):
             raise ValueError(f"liblibleopard.a (debug) is not compatible with target architecture: {target}")
         libraries.append(leopard_debug)
@@ -192,7 +214,7 @@ def combine_libraries(libraries: List[Path], output_dir: Path) -> Path:
     """Combine multiple static libraries into one."""
     print(f"Combining {len(libraries)} libraries...")
     
-    output_path = Path.cwd() / output_dir / "libstorage.a"
+    output_path = output_dir / "libstorage.a"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
     # Build ar command
@@ -294,16 +316,17 @@ def generate_sha256sums(output_dir: Path) -> Path:
     if not files_to_checksum:
         raise FileNotFoundError(f"No files found in {output_dir} to generate checksums")
     
-    # Generate checksums using relative paths (just filenames)
+    # Generate checksums without changing directory
     checksums = []
-    original_cwd = Path.cwd()
-    try:
-        os.chdir(output_dir)
-        for file_path in sorted(files_to_checksum):
-            result = run_command(["sha256sum", file_path.name])
-            checksums.append(result.stdout.strip())
-    finally:
-        os.chdir(original_cwd)
+    for file_path in sorted(files_to_checksum):
+        result = run_command(["sha256sum", str(file_path)])
+        # Extract just the filename from the output
+        checksum_line = result.stdout.strip()
+        # Replace full path with just filename
+        checksum_parts = checksum_line.split()
+        if len(checksum_parts) >= 2:
+            checksum_parts[1] = file_path.name
+            checksums.append("  ".join(checksum_parts))
     
     # Write checksums file
     checksums_path.write_text("\n".join(checksums) + "\n")

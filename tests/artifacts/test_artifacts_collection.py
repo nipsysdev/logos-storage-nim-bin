@@ -1,7 +1,7 @@
 """Tests for artifact collection in artifacts.py."""
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -11,65 +11,88 @@ from src.artifacts import collect_artifacts
 class TestCollectArtifacts:
     """Test collect_artifacts function."""
 
-    def test_collect_artifacts_finds_all_libraries(self, sample_artifact_paths, mock_artifact_collection_setup):
-        libraries = collect_artifacts(sample_artifact_paths, "x86_64")
+    def test_collect_artifacts_finds_all_libraries(self, sample_artifact_paths, mock_path_exists, mock_run_command):
+        """Test that collect_artifacts finds all 6 libraries when they exist."""
+        mock_path_exists.return_value = True
+        
+        with patch("src.artifacts.check_artifact_compatibility", return_value=True):
+            libraries = collect_artifacts(sample_artifact_paths, "x86_64")
         
         assert len(libraries) == 6
 
     def test_collect_artifacts_raises_file_not_found(self, sample_artifact_paths):
+        """Test that collect_artifacts raises FileNotFoundError when libstorage.a is missing."""
         libstorage = sample_artifact_paths / "build" / "libstorage.a"
-        libstorage.unlink()
         
-        with pytest.raises(FileNotFoundError) as exc_info:
-            collect_artifacts(sample_artifact_paths, "x86_64")
+        # Create mock path_exists function that returns False for libstorage.a
+        def mock_path_exists(path: Path) -> bool:
+            return str(path) != str(libstorage)
+        
+        with patch("src.artifacts.check_artifact_compatibility", return_value=True):
+            with pytest.raises(FileNotFoundError) as exc_info:
+                collect_artifacts(sample_artifact_paths, "x86_64", path_exists=mock_path_exists)
         
         assert "libstorage.a not found" in str(exc_info.value)
 
-    def test_collect_artifacts_raises_value_error_for_incompatible(self, sample_artifact_paths):
+    def test_collect_artifacts_raises_value_error_for_incompatible(self, sample_artifact_paths, mock_path_exists, mock_run_command):
+        """Test that collect_artifacts raises ValueError when library is incompatible."""
+        mock_path_exists.return_value = True
+        
         with patch("src.artifacts.check_artifact_compatibility", return_value=False):
             with pytest.raises(ValueError) as exc_info:
                 collect_artifacts(sample_artifact_paths, "x86_64")
         
         assert "not compatible with target architecture" in str(exc_info.value)
 
-    def test_collect_artifacts_uses_release_leopard(self, sample_artifact_paths, mock_artifact_collection_setup):
-        libraries = collect_artifacts(sample_artifact_paths, "x86_64")
-        
-        leopard_libs = [lib for lib in libraries if "liblibleopard.a" in str(lib)]
-        assert len(leopard_libs) == 1
-        assert "release" in str(leopard_libs[0])
-
-    def test_collect_artifacts_uses_debug_leopard_when_release_missing(self, sample_artifact_paths):
+    def test_collect_artifacts_uses_release_leopard(self, sample_artifact_paths, mock_path_exists, mock_run_command):
+        """Test that collect_artifacts uses release leopard library when available."""
         leopard_release = sample_artifact_paths / "nimcache" / "release" / "libstorage" / "vendor_leopard" / "liblibleopard.a"
-        leopard_release.unlink()
         
-        leopard_debug = sample_artifact_paths / "nimcache" / "debug" / "libstorage" / "vendor_leopard" / "liblibleopard.a"
-        leopard_debug.parent.mkdir(parents=True, exist_ok=True)
-        leopard_debug.write_bytes(b"fake libleopard debug content")
+        # Configure exists to return True for release leopard
+        mock_path_exists.return_value = True
         
         with patch("src.artifacts.check_artifact_compatibility", return_value=True):
             libraries = collect_artifacts(sample_artifact_paths, "x86_64")
         
         leopard_libs = [lib for lib in libraries if "liblibleopard.a" in str(lib)]
         assert len(leopard_libs) == 1
+        assert "release" in str(leopard_libs[0])
+
+    def test_collect_artifacts_uses_debug_leopard_when_release_missing(self, sample_artifact_paths):
+        """Test that collect_artifacts uses debug leopard when release is missing."""
+        leopard_release = sample_artifact_paths / "nimcache" / "release" / "libstorage" / "vendor_leopard" / "liblibleopard.a"
+        leopard_debug = sample_artifact_paths / "nimcache" / "debug" / "libstorage" / "vendor_leopard" / "liblibleopard.a"
+        
+        # Create mock path_exists function that returns False for release, True for debug
+        def mock_path_exists(path: Path) -> bool:
+            return str(path) != str(leopard_release)
+        
+        with patch("src.artifacts.check_artifact_compatibility", return_value=True):
+            libraries = collect_artifacts(sample_artifact_paths, "x86_64", path_exists=mock_path_exists)
+        
+        leopard_libs = [lib for lib in libraries if "liblibleopard.a" in str(lib)]
+        assert len(leopard_libs) == 1
         assert "debug" in str(leopard_libs[0])
 
     def test_collect_artifacts_raises_when_leopard_missing(self, sample_artifact_paths):
+        """Test that collect_artifacts raises FileNotFoundError when leopard is missing."""
         leopard_release = sample_artifact_paths / "nimcache" / "release" / "libstorage" / "vendor_leopard" / "liblibleopard.a"
-        leopard_release.unlink()
-        
         leopard_debug = sample_artifact_paths / "nimcache" / "debug" / "libstorage" / "vendor_leopard" / "liblibleopard.a"
-        if leopard_debug.exists():
-            leopard_debug.unlink()
+        
+        # Create mock path_exists function that returns False for both release and debug leopard
+        def mock_path_exists(path: Path) -> bool:
+            return str(path) not in {str(leopard_release), str(leopard_debug)}
         
         with patch("src.artifacts.check_artifact_compatibility", return_value=True):
             with pytest.raises(FileNotFoundError) as exc_info:
-                collect_artifacts(sample_artifact_paths, "x86_64")
+                collect_artifacts(sample_artifact_paths, "x86_64", path_exists=mock_path_exists)
         
         assert "liblibleopard.a not found" in str(exc_info.value)
 
-    def test_collect_artifacts_checks_release_leopard_compatibility(self, sample_artifact_paths):
+    def test_collect_artifacts_checks_release_leopard_compatibility(self, sample_artifact_paths, mock_path_exists, mock_run_command):
         """Test that collect_artifacts checks compatibility for release leopard library."""
+        mock_path_exists.return_value = True
+        
         with patch("src.artifacts.check_artifact_compatibility") as mock_check:
             mock_check.return_value = True
             libraries = collect_artifacts(sample_artifact_paths, "x86_64")
@@ -80,9 +103,10 @@ class TestCollectArtifacts:
         assert len(leopard_calls) == 1
         assert leopard_calls[0][0][1] == "x86_64"
 
-    def test_collect_artifacts_raises_when_release_leopard_incompatible(self, sample_artifact_paths):
+    def test_collect_artifacts_raises_when_release_leopard_incompatible(self, sample_artifact_paths, mock_path_exists, mock_run_command):
         """Test that collect_artifacts raises ValueError when release leopard is incompatible."""
         leopard_release = sample_artifact_paths / "nimcache" / "release" / "libstorage" / "vendor_leopard" / "liblibleopard.a"
+        mock_path_exists.return_value = True
         
         with patch("src.artifacts.check_artifact_compatibility") as mock_check:
             # Make release leopard incompatible
@@ -100,39 +124,39 @@ class TestCollectArtifacts:
     def test_collect_artifacts_checks_debug_leopard_compatibility(self, sample_artifact_paths):
         """Test that collect_artifacts checks compatibility for debug leopard library when release is missing."""
         leopard_release = sample_artifact_paths / "nimcache" / "release" / "libstorage" / "vendor_leopard" / "liblibleopard.a"
-        leopard_release.unlink()
-        
         leopard_debug = sample_artifact_paths / "nimcache" / "debug" / "libstorage" / "vendor_leopard" / "liblibleopard.a"
-        leopard_debug.parent.mkdir(parents=True, exist_ok=True)
-        leopard_debug.write_bytes(b"fake libleopard debug content")
+        
+        # Create mock path_exists function that returns False for release, True for debug
+        def mock_path_exists(path: Path) -> bool:
+            return str(path) != str(leopard_release)
         
         with patch("src.artifacts.check_artifact_compatibility") as mock_check:
             mock_check.return_value = True
-            libraries = collect_artifacts(sample_artifact_paths, "x86_64")
+            libraries = collect_artifacts(sample_artifact_paths, "x86_64", path_exists=mock_path_exists)
         
         # Verify check_artifact_compatibility was called for debug leopard
-        leopard_calls = [call for call in mock_check.call_args_list if call[0][0] == leopard_debug]
+        leopard_calls = [call for call in mock_check.call_args_list if str(call[0][0]) == str(leopard_debug)]
         assert len(leopard_calls) == 1
         assert leopard_calls[0][0][1] == "x86_64"
 
     def test_collect_artifacts_raises_when_debug_leopard_incompatible(self, sample_artifact_paths):
         """Test that collect_artifacts raises ValueError when debug leopard is incompatible."""
         leopard_release = sample_artifact_paths / "nimcache" / "release" / "libstorage" / "vendor_leopard" / "liblibleopard.a"
-        leopard_release.unlink()
-        
         leopard_debug = sample_artifact_paths / "nimcache" / "debug" / "libstorage" / "vendor_leopard" / "liblibleopard.a"
-        leopard_debug.parent.mkdir(parents=True, exist_ok=True)
-        leopard_debug.write_bytes(b"fake libleopard debug content")
+        
+        # Create mock path_exists function that returns False for release, True for debug
+        def mock_path_exists(path: Path) -> bool:
+            return str(path) != str(leopard_release)
         
         with patch("src.artifacts.check_artifact_compatibility") as mock_check:
             # Make debug leopard incompatible
             def side_effect(path, target):
-                if path == leopard_debug:
+                if str(path) == str(leopard_debug):
                     return False
                 return True
             mock_check.side_effect = side_effect
             
             with pytest.raises(ValueError) as exc_info:
-                collect_artifacts(sample_artifact_paths, "x86_64")
+                collect_artifacts(sample_artifact_paths, "x86_64", path_exists=mock_path_exists)
         
         assert "liblibleopard.a (debug) is not compatible with target architecture" in str(exc_info.value)
