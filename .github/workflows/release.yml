@@ -20,6 +20,7 @@ jobs:
       should_build: ${{ steps.check.outputs.should_build }}
       commit_hash: ${{ steps.check.outputs.commit_hash }}
       commit_short: ${{ steps.check.outputs.commit_short }}
+      commit_date: ${{ steps.check.outputs.commit_date }}
     steps:
       - name: Get latest release
         id: latest_release
@@ -37,6 +38,10 @@ jobs:
           LATEST_COMMIT=$(awk '{print $1}' latest.txt)
           LATEST_SHORT=$(echo $LATEST_COMMIT | cut -c1-7)
 
+          # Fetch commit date using GitHub API
+          API_URL="https://api.github.com/repos/logos-storage/logos-storage-nim/commits/$LATEST_COMMIT"
+          COMMIT_DATE=$(curl -s "$API_URL" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data['commit']['committer']['date'])" 2>/dev/null || echo "Unknown")
+
           # Get latest release description from the action output
           LATEST_RELEASE="${{ steps.latest_release.outputs.description }}"
 
@@ -45,6 +50,7 @@ jobs:
             echo "should_build=true" >> $GITHUB_OUTPUT
             echo "commit_hash=$LATEST_COMMIT" >> $GITHUB_OUTPUT
             echo "commit_short=$LATEST_SHORT" >> $GITHUB_OUTPUT
+            echo "commit_date=$COMMIT_DATE" >> $GITHUB_OUTPUT
             echo "No previous release found, building for commit: $LATEST_SHORT"
             exit 0
           fi
@@ -57,6 +63,7 @@ jobs:
             echo "should_build=true" >> $GITHUB_OUTPUT
             echo "commit_hash=$LATEST_COMMIT" >> $GITHUB_OUTPUT
             echo "commit_short=$LATEST_SHORT" >> $GITHUB_OUTPUT
+            echo "commit_date=$COMMIT_DATE" >> $GITHUB_OUTPUT
             echo "New commit detected: $LATEST_SHORT"
           fi
 
@@ -182,7 +189,7 @@ jobs:
 
             Commit: ${{ needs.check-updates.outputs.commit_hash }}
             Branch: ${{ env.branch }}
-            Date: ${{ github.event.head_commit.timestamp }}
+            Date: ${{ needs.check-updates.outputs.commit_date }}
 
             Artifacts:
             - Linux x86_64: logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-linux-amd64.tar.gz
