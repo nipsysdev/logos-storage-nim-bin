@@ -69,6 +69,12 @@ jobs:
           - os: linux
             cpu: arm64
             builder: ubuntu-22.04-arm
+          - os: macos
+            cpu: amd64
+            builder: macos-13
+          - os: macos
+            cpu: arm64
+            builder: macos-14
 
     steps:
       - name: Checkout code
@@ -82,8 +88,11 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y git make gcc binutils cmake
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y git make gcc binutils cmake
+          fi
+        shell: bash
 
       - name: Build logos-storage-nim
         run: |

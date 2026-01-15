@@ -52,23 +52,41 @@ def get_platform_identifier() -> str:
     """
     Get platform identifier for artifact naming.
     
-    This uses a simple format (e.g., linux-amd64, linux-arm64)
+    This uses a simple format (e.g., linux-amd64, linux-arm64, darwin-amd64, darwin-arm64)
     which is used for naming artifact directories and release files.
     """
+    system = platform.system().lower()
     machine = platform.machine().lower()
     
-    if machine in ("aarch64", "arm64"):
-        return "linux-arm64"
-    elif machine in ("x86_64", "amd64"):
-        return "linux-amd64"
+    if system == "darwin":
+        if machine in ("aarch64", "arm64"):
+            return "darwin-arm64"
+        elif machine in ("x86_64", "amd64"):
+            return "darwin-amd64"
+        else:
+            return "darwin-unknown"
+    elif system == "linux":
+        if machine in ("aarch64", "arm64"):
+            return "linux-arm64"
+        elif machine in ("x86_64", "amd64"):
+            return "linux-amd64"
+        else:
+            return "linux-unknown"
     else:
-        return "linux-unknown"
+        return f"{system}-{machine}"
 
 
 def get_parallel_jobs() -> int:
     """Get number of parallel jobs (leaves one core free)."""
     try:
-        result = run_command(["nproc"], check=False)
+        # Use sysctl on macOS, nproc on Linux
+        system = platform.system().lower()
+        if system == "darwin":
+            cmd = ["sysctl", "-n", "hw.ncpu"]
+        else:
+            cmd = ["nproc"]
+        
+        result = run_command(cmd, check=False)
         if result.returncode == 0:
             cpu_count = int(result.stdout.strip())
             return max(1, cpu_count - 1)
