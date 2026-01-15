@@ -1,5 +1,7 @@
 # logos-storage-nim-bin
 
+[![codecov](https://codecov.io/github/nipsysdev/logos-storage-nim-bin/graph/badge.svg?token=DFKTDP7U9B)](https://codecov.io/github/nipsysdev/logos-storage-nim-bin)
+
 Pre-built static libraries for [logos-storage-nim](https://github.com/logos-storage/logos-storage-nim).
 
 ## Supported Platforms
