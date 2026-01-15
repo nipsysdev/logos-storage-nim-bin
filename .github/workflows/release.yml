@@ -172,7 +172,9 @@ jobs:
             # Verify SHA256SUMS.txt
             find dist -name "SHA256SUMS.txt" -type f | while read checksum_file; do
               echo "Verifying checksums in: $checksum_file"
-              sha256sum -c "$checksum_file"
+              # Change to the directory containing the checksum file before verification
+              checksum_dir=$(dirname "$checksum_file")
+              (cd "$checksum_dir" && sha256sum -c "SHA256SUMS.txt")
             done
             
             echo ""
