@@ -123,6 +123,12 @@ jobs:
           - os: linux
             cpu: arm64
             builder: ubuntu-22.04-arm
+          - os: macos
+            cpu: amd64
+            builder: macos-15-intel
+          - os: macos
+            cpu: arm64
+            builder: macos-latest
 
     name: ${{ matrix.os }}-${{ matrix.cpu }}
     runs-on: ${{ matrix.builder }}
@@ -140,8 +146,11 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y git make gcc binutils cmake
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y git make gcc binutils cmake
+          fi
+        shell: bash
 
       - name: Build
         run: |
@@ -238,6 +247,8 @@ jobs:
             Artifacts:
             - Linux x86_64: logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-linux-amd64.tar.gz
             - Linux AArch64: logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-linux-arm64.tar.gz
+            - macOS Intel: logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-darwin-amd64.tar.gz
+            - macOS Apple Silicon: logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-darwin-arm64.tar.gz
 
             Each archive contains:
             - libstorage.a: Main storage library

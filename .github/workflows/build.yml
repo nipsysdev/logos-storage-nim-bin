@@ -2,6 +2,8 @@ name: Build
 
 on:
   push:
+    branches:
+      - main
   pull_request:
   workflow_dispatch:
     inputs:
@@ -71,10 +73,10 @@ jobs:
             builder: ubuntu-22.04-arm
           - os: macos
             cpu: amd64
-            builder: macos-13
+            builder: macos-15-intel
           - os: macos
             cpu: arm64
-            builder: macos-14
+            builder: macos-latest
 
     steps:
       - name: Checkout code
