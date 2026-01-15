@@ -2,24 +2,63 @@ name: Build
 
 on:
   push:
-    branches: [main]
   pull_request:
-    branches: [main]
   workflow_dispatch:
-    inputs:
-      branch:
-        description: "logos-storage-nim branch to build from"
-        required: false
-        default: "master"
+  inputs:
+    branch:
+      description: "logos-storage-nim branch to build from"
+      required: false
+      default: "master"
 
 env:
   cache_nonce: 0
 
 jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install mise
+        uses: jdx/mise-action@v3
+        with:
+          enable: true
+          cache: true
+
+      - name: Create virtual environment
+        run: |
+          python -m venv venv
+
+      - name: Install test dependencies
+        run: |
+          source venv/bin/activate
+          pip install -r requirements-test.txt
+
+      - name: Run tests with coverage
+        run: |
+          source venv/bin/activate
+          pytest tests/ -v --cov=src --cov-report=xml --cov-report=term
+
+      - name: Upload coverage reports
+        if: github.event_name != 'workflow_dispatch'
+        uses: codecov/codecov-action@v5
+        continue-on-error: true
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
   build:
     name: Build ${{ matrix.os }}-${{ matrix.cpu }}
     runs-on: ${{ matrix.builder }}
     timeout-minutes: 120
+    needs: test
     strategy:
       fail-fast: false
       matrix:
