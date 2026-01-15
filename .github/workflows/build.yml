@@ -4,11 +4,11 @@ on:
   push:
   pull_request:
   workflow_dispatch:
-  inputs:
-    branch:
-      description: "logos-storage-nim branch to build from"
-      required: false
-      default: "master"
+    inputs:
+      branch:
+        description: "logos-storage-nim branch to build from"
+        required: false
+        default: "master"
 
 env:
   cache_nonce: 0
