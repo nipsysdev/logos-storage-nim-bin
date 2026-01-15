@@ -34,3 +34,6 @@ venv
 .coverage
 .pytest_cache/
 htmlcov/
+
+# Kilo Code
+.kilocode/
