@@ -85,24 +85,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y git make gcc binutils cmake
 
-      - name: Get logos-storage-nim commit hash
-        id: commit-hash
-        run: |
-          BRANCH=${{ github.event.inputs.branch || 'master' }}
-          COMMIT=$(git ls-remote https://github.com/logos-storage/logos-storage-nim.git refs/heads/$BRANCH | awk '{print $1}')
-          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
-          echo "short=$(echo $COMMIT | cut -c1-7)" >> $GITHUB_OUTPUT
-
-      - name: Cache logos-storage-nim and Nim build cache
-        uses: actions/cache@v5
-        with:
-          path: |
-            logos-storage-nim
-            ~/.cache/nim
-          key: ${{ runner.os }}-logos-${{ matrix.os }}-${{ matrix.cpu }}-${{ steps.commit-hash.outputs.commit }}
-          restore-keys: |
-            ${{ runner.os }}-logos-${{ matrix.os }}-${{ matrix.cpu }}-
-
       - name: Build logos-storage-nim
         run: |
           make clean
