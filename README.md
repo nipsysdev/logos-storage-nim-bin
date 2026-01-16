@@ -6,8 +6,14 @@ Pre-built static libraries for [logos-storage-nim](https://github.com/logos-stor
 
 ## Supported Platforms
 
-- **Linux x86_64** (`linux-amd64`)
-- **Linux ARM64** (`linux-arm64`)
+### Linux
+
+- **x86_64 (amd64)**: `linux-amd64`
+- **ARM64 (aarch64)**: `linux-arm64`
+
+### macOS
+
+- **Apple Silicon (ARM64)**: `darwin-arm64`
 
 ## Quick Start
 
