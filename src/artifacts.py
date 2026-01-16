@@ -134,13 +134,24 @@ def check_artifact_compatibility(artifact_path: Path, target: str) -> bool:
         
         file_info = file_result.stdout
         
+        # Debug logging to help diagnose compatibility issues
+        print(f"DEBUG: Checking compatibility for {artifact_path.name}")
+        print(f"DEBUG: Target architecture: {target}")
+        print(f"DEBUG: File command output: {file_info}")
+        
         if "aarch64" in target:
             # Check for both aarch64 (Linux) and arm64 (macOS Mach-O)
-            return "aarch64" in file_info or "arm64" in file_info
+            result = "aarch64" in file_info or "arm64" in file_info
+            print(f"DEBUG: aarch64/arm64 check result: {result}")
+            return result
         elif "x86_64" in target:
-            return "x86-64" in file_info or "Intel 80386" in file_info
+            result = "x86-64" in file_info or "Intel 80386" in file_info
+            print(f"DEBUG: x86_64 check result: {result}")
+            return result
         elif "i686" in target or "i386" in target:
-            return "Intel 80386" in file_info
+            result = "Intel 80386" in file_info
+            print(f"DEBUG: i686/i386 check result: {result}")
+            return result
     finally:
         Path(temp_path).unlink(missing_ok=True)
     
