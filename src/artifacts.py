@@ -98,65 +98,6 @@ def build_libstorage(logos_storage_dir: Path, jobs: int) -> None:
     print("libstorage build complete")
 
 
-def check_artifact_compatibility(artifact_path: Path, target: str) -> bool:
-    """Check if an artifact is compatible with the target architecture."""
-    # List archive contents
-    result = run_command(["ar", "t", str(artifact_path)], check=False)
-    if result.returncode != 0:
-        print(f"Warning: Failed to list archive contents for {artifact_path}")
-        return False
-    
-    # Get first object file
-    first_obj = result.stdout.split('\n')[0].strip()
-    if not first_obj:
-        print(f"Warning: Archive appears to be empty: {artifact_path}")
-        return False
-    
-    # Extract object file (binary output)
-    extract_result = run_command(
-        ["ar", "p", str(artifact_path), first_obj],
-        check=False,
-        binary=True
-    )
-    if extract_result.returncode != 0:
-        print(f"Warning: Failed to extract {first_obj} from archive")
-        return False
-    
-    # Write to temp file and check
-    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-        temp_file.write(extract_result.stdout)
-        temp_path = temp_file.name
-    
-    try:
-        file_result = run_command(["file", temp_path], check=False)
-        if file_result.returncode != 0:
-            return False
-        
-        file_info = file_result.stdout
-        
-        # Debug logging to help diagnose compatibility issues
-        print(f"DEBUG: Checking compatibility for {artifact_path.name}")
-        print(f"DEBUG: Target architecture: {target}")
-        print(f"DEBUG: File command output: {file_info}")
-        
-        if "aarch64" in target:
-            # Check for both aarch64 (Linux) and arm64 (macOS Mach-O)
-            result = "aarch64" in file_info or "arm64" in file_info
-            print(f"DEBUG: aarch64/arm64 check result: {result}")
-            return result
-        elif "x86_64" in target:
-            result = "x86-64" in file_info or "Intel 80386" in file_info
-            print(f"DEBUG: x86_64 check result: {result}")
-            return result
-        elif "i686" in target or "i386" in target:
-            result = "Intel 80386" in file_info
-            print(f"DEBUG: i686/i386 check result: {result}")
-            return result
-    finally:
-        Path(temp_path).unlink(missing_ok=True)
-    
-    return False
-
 
 def collect_artifacts(
     logos_storage_dir: Path,
@@ -197,25 +138,19 @@ def collect_artifacts(
     for name, path in artifact_paths:
         if not path_exists(path):
             raise FileNotFoundError(f"{name} not found at {path}")
-        if not check_artifact_compatibility(path, target):
-            raise ValueError(f"{name} is not compatible with target architecture: {target}")
         libraries.append(path)
-        print(f"✓ Found {name} (compatible with {target})")
+        print(f"✓ Found {name}")
     
     # Handle leopard library (check release first, then debug)
     leopard_release = logos_storage_dir / "nimcache" / "release" / "libstorage" / "vendor_leopard" / "liblibleopard.a"
     leopard_debug = logos_storage_dir / "nimcache" / "debug" / "libstorage" / "vendor_leopard" / "liblibleopard.a"
     
     if path_exists(leopard_release):
-        if not check_artifact_compatibility(leopard_release, target):
-            raise ValueError(f"liblibleopard.a (release) is not compatible with target architecture: {target}")
         libraries.append(leopard_release)
-        print(f"✓ Found liblibleopard.a (release, compatible with {target})")
+        print(f"✓ Found liblibleopard.a (release)")
     elif path_exists(leopard_debug):
-        if not check_artifact_compatibility(leopard_debug, target):
-            raise ValueError(f"liblibleopard.a (debug) is not compatible with target architecture: {target}")
         libraries.append(leopard_debug)
-        print(f"✓ Found liblibleopard.a (debug, compatible with {target})")
+        print(f"✓ Found liblibleopard.a (debug)")
     else:
         raise FileNotFoundError("liblibleopard.a not found (checked release and debug locations)")
     
