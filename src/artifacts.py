@@ -135,7 +135,8 @@ def check_artifact_compatibility(artifact_path: Path, target: str) -> bool:
         file_info = file_result.stdout
         
         if "aarch64" in target:
-            return "aarch64" in file_info
+            # Check for both aarch64 (Linux) and arm64 (macOS Mach-O)
+            return "aarch64" in file_info or "arm64" in file_info
         elif "x86_64" in target:
             return "x86-64" in file_info or "Intel 80386" in file_info
         elif "i686" in target or "i386" in target:

@@ -27,6 +27,22 @@ class TestCheckArtifactCompatibility:
         
         assert result is True
 
+    def test_check_compatibility_returns_true_for_aarch64_macos_macho(self):
+        """Test that check_artifact_compatibility returns True for macOS Mach-O arm64 binaries."""
+        artifact_path = Path("/tmp/test.a")
+        target = "aarch64"
+        
+        with patch("src.artifacts.run_command") as mock_run:
+            mock_run.side_effect = [
+                subprocess.CompletedProcess(args=[], returncode=0, stdout="object.o\n", stderr=""),
+                subprocess.CompletedProcess(args=[], returncode=0, stdout=b"binary data", stderr=b""),
+                subprocess.CompletedProcess(args=[], returncode=0, stdout="Mach-O 64-bit object arm64", stderr=""),
+            ]
+            
+            result = check_artifact_compatibility(artifact_path, target)
+        
+        assert result is True
+
     def test_check_compatibility_returns_true_for_x86_64(self):
         artifact_path = Path("/tmp/test.a")
         target = "x86_64"

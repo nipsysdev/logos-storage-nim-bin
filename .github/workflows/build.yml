@@ -72,9 +72,6 @@ jobs:
             cpu: arm64
             builder: ubuntu-22.04-arm
           - os: macos
-            cpu: amd64
-            builder: macos-15-intel
-          - os: macos
             cpu: arm64
             builder: macos-latest
 

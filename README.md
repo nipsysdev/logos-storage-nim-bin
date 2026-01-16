@@ -13,7 +13,6 @@ Pre-built static libraries for [logos-storage-nim](https://github.com/logos-stor
 
 ### macOS
 
-- **Intel (x86_64)**: `darwin-amd64`
 - **Apple Silicon (ARM64)**: `darwin-arm64`
 
 ## Quick Start
