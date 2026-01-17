@@ -165,11 +165,18 @@ jobs:
           enable: true
           cache: true
 
-      - name: Install build dependencies (Windows)
+      - name: Setup MSYS2 (Windows)
         if: runner.os == 'Windows'
-        run: |
-          C:\msys64\usr\bin\bash.exe -lc 'pacman -S --noconfirm --needed base-devel mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make git'
-        shell: cmd
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            base-devel
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-make
+            git
 
       - name: Install build dependencies (Linux)
         if: runner.os == 'Linux'
@@ -180,6 +187,7 @@ jobs:
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
+        shell: msys2 {0}
         run: |
           echo "Current directory:"
           pwd
@@ -201,7 +209,6 @@ jobs:
         env:
           BRANCH: ${{ env.pinned_branch }}
           COMMIT: ${{ env.pinned_commit }}
-        shell: C:\msys64\usr\bin\bash.exe -lc "{0}"
 
       - name: Build (Unix)
         if: runner.os != 'Windows'
