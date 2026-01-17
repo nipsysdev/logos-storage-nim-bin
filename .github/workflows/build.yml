@@ -14,6 +14,7 @@ on:
 
 env:
   cache_nonce: 0
+  pinned_commit: 1acedcf71c05e3e80e3d3634c719acf058357ffa
 
 jobs:
   test:
@@ -98,4 +99,4 @@ jobs:
           make clean
           make
         env:
-          COMMIT: 1acedcf71c05e3e80e3d3634c719acf058357ffa
+          COMMIT: ${{ env.pinned_commit }}

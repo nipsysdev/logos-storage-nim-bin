@@ -11,6 +11,7 @@ on:
 env:
   cache_nonce: 0
   branch: master
+  pinned_commit: 1acedcf71c05e3e80e3d3634c719acf058357ffa
 
 jobs:
   # Run tests
@@ -75,10 +76,18 @@ jobs:
       - name: Check for new commits
         id: check
         run: |
-          # Fetch latest commit from logos-storage-nim
-          git ls-remote https://github.com/logos-storage/logos-storage-nim.git master > latest.txt
-          LATEST_COMMIT=$(awk '{print $1}' latest.txt)
-          LATEST_SHORT=$(echo $LATEST_COMMIT | cut -c1-7)
+          # Use pinned commit if set, otherwise fetch latest from master
+          if [ -n "${{ env.pinned_commit }}" ]; then
+            LATEST_COMMIT="${{ env.pinned_commit }}"
+            LATEST_SHORT=$(echo $LATEST_COMMIT | cut -c1-7)
+            echo "Using pinned commit: $LATEST_SHORT"
+          else
+            # Fetch latest commit from logos-storage-nim
+            git ls-remote https://github.com/logos-storage/logos-storage-nim.git master > latest.txt
+            LATEST_COMMIT=$(awk '{print $1}' latest.txt)
+            LATEST_SHORT=$(echo $LATEST_COMMIT | cut -c1-7)
+            echo "Using latest commit from master: $LATEST_SHORT"
+          fi
 
           # Fetch commit date using GitHub API
           API_URL="https://api.github.com/repos/logos-storage/logos-storage-nim/commits/$LATEST_COMMIT"
@@ -154,7 +163,7 @@ jobs:
           make clean
           make
         env:
-          COMMIT: 1acedcf71c05e3e80e3d3634c719acf058357ffa
+          COMMIT: ${{ env.pinned_commit }}
 
       - name: Upload artifacts
         if: env.ACT != 'true'
