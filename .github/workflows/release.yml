@@ -201,7 +201,7 @@ jobs:
         env:
           BRANCH: ${{ env.pinned_branch }}
           COMMIT: ${{ env.pinned_commit }}
-        shell: msys2
+        shell: C:\msys64\usr\bin\bash.exe -lc "{0}"
 
       - name: Build (Unix)
         if: runner.os != 'Windows'
