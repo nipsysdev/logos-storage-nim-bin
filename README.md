@@ -64,7 +64,12 @@ make build
 
 # Build from specific branch
 BRANCH="release/0.2.5" make build
+
+# Build from specific commit
+COMMIT="abc123def456789abc123def456789abc123def" make build
 ```
+
+**Note**: `BRANCH` and `COMMIT` are mutually exclusive. Specify one or the other, not both.
 
 ### Make Targets
 

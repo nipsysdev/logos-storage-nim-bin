@@ -104,3 +104,67 @@ class TestUpdateRepository:
             update_repository(repo_dir, branch)
         
         assert mock_run.call_args_list[4][0][0] == ["git", "-C", str(repo_dir), "pull", "origin", branch]
+
+    def test_update_repository_at_specific_commit(self):
+        """Test that update_repository updates to a specific commit."""
+        repo_dir = Path("/tmp/test-repo")
+        commit = "abc123def456789abc123def456789abc123def"
+        
+        with patch("src.repository.validate_commit_exists", return_value=True):
+            with patch("src.repository.run_command") as mock_run:
+                update_repository(repo_dir, "master", commit)
+        
+        assert mock_run.call_count == 2
+        
+        # First call: git fetch --all --tags
+        first_call = mock_run.call_args_list[0][0][0]
+        assert first_call[0] == "git"
+        assert first_call[1] == "-C"
+        assert first_call[3] == "fetch"
+        assert "--all" in first_call
+        assert "--tags" in first_call
+        
+        # Second call: git checkout <commit>
+        second_call = mock_run.call_args_list[1][0][0]
+        assert second_call[0] == "git"
+        assert second_call[1] == "-C"
+        assert second_call[3] == "checkout"
+        assert second_call[4] == commit
+
+    def test_update_repository_at_commit_validates_commit_exists(self):
+        """Test that update_repository validates commit exists before checkout."""
+        repo_dir = Path("/tmp/test-repo")
+        commit = "abc123def456789abc123def456789abc123def"
+        
+        with patch("src.repository.validate_commit_exists") as mock_validate:
+            mock_validate.return_value = True
+            with patch("src.repository.run_command"):
+                update_repository(repo_dir, "master", commit)
+        
+        mock_validate.assert_called_once_with(repo_dir, commit)
+
+    def test_update_repository_at_commit_raises_error_for_invalid_commit(self):
+        """Test that update_repository raises ValueError for invalid commit."""
+        repo_dir = Path("/tmp/test-repo")
+        commit = "invalidcommit123"
+        
+        with patch("src.repository.validate_commit_exists", return_value=False):
+            with patch("src.repository.run_command"):
+                with pytest.raises(ValueError) as exc_info:
+                    update_repository(repo_dir, "master", commit)
+        
+        assert "Commit 'invalidcommit123' not found in repository" in str(exc_info.value)
+
+    def test_update_repository_at_commit_fetches_all_objects(self):
+        """Test that update_repository fetches all objects when updating to commit."""
+        repo_dir = Path("/tmp/test-repo")
+        commit = "abc123def456789abc123def456789abc123def"
+        
+        with patch("src.repository.validate_commit_exists", return_value=True):
+            with patch("src.repository.run_command") as mock_run:
+                update_repository(repo_dir, "master", commit)
+        
+        first_call = mock_run.call_args_list[0][0][0]
+        assert "fetch" in first_call
+        assert "--all" in first_call
+        assert "--tags" in first_call

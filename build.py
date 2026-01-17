@@ -28,18 +28,32 @@ def main() -> None:
     """Main entry point."""
     # Get configuration
     platform = get_platform_identifier()
-    branch = os.environ.get("BRANCH", "master")
+    branch = os.environ.get("BRANCH")
+    commit = os.environ.get("COMMIT")
+    
+    # Validate mutual exclusivity
+    if branch and commit:
+        print("Error: Cannot specify both BRANCH and COMMIT environment variables.")
+        print("Use one or the other.")
+        sys.exit(1)
+    
+    # Set default branch if neither is specified
+    if not branch and not commit:
+        branch = "master"
     
     print("Building logos-storage-nim")
     print(f"Platform: {platform}")
-    print(f"Branch: {branch}")
+    if commit:
+        print(f"Commit: {commit}")
+    else:
+        print(f"Branch: {branch}")
     print("=" * 42)
     
     # Configure environment
     configure_reproducible_environment()
     
     # Ensure repository
-    logos_storage_dir, commit_info = ensure_logos_storage_repo(branch)
+    logos_storage_dir, commit_info = ensure_logos_storage_repo(branch, commit)
 
     print(f"Commit: {commit_info.commit} ({commit_info.commit_short})")
     print(f"Branch: {commit_info.branch}")

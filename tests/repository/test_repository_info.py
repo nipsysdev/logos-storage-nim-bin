@@ -120,3 +120,22 @@ class TestGetCommitInfo:
             result = get_commit_info(repo_dir)
         
         assert result.branch == "HEAD"
+
+    def test_get_commit_info_returns_correct_commit_in_detached_state(self):
+        """Test that get_commit_info returns correct commit hash when in detached HEAD state."""
+        repo_dir = Path("/tmp/test-repo")
+        commit = "abc123def456789abc123def456789abc123def"
+        commit_short = "abc123d"
+        
+        with patch("src.repository.run_command") as mock_run:
+            mock_run.side_effect = [
+                subprocess.CompletedProcess(args=[], returncode=0, stdout=f"{commit}\n", stderr=""),
+                subprocess.CompletedProcess(args=[], returncode=0, stdout=f"{commit_short}\n", stderr=""),
+                subprocess.CompletedProcess(args=[], returncode=0, stdout="HEAD\n", stderr=""),
+            ]
+            
+            result = get_commit_info(repo_dir)
+        
+        assert result.commit == commit
+        assert result.commit_short == commit_short
+        assert result.branch == "HEAD"

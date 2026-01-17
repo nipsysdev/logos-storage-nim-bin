@@ -40,16 +40,20 @@ class TestMainOrchestration:
 
     def test_main_calls_ensure_logos_storage_repo_with_default_branch(self, mock_build_setup):
         """Test that main() calls ensure_logos_storage_repo() with default branch."""
-        main()
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("BRANCH", None)
+            os.environ.pop("COMMIT", None)
+            main()
         
-        mock_build_setup["mock_repo"].assert_called_once_with("master")
+        mock_build_setup["mock_repo"].assert_called_once_with("master", None)
 
     def test_main_calls_ensure_logos_storage_repo_with_custom_branch(self, mock_build_setup):
         """Test that main() calls ensure_logos_storage_repo() with custom BRANCH env var."""
-        with patch.dict(os.environ, {"BRANCH": "develop"}):
+        with patch.dict(os.environ, {"BRANCH": "develop"}, clear=False):
+            os.environ.pop("COMMIT", None)
             main()
         
-        mock_build_setup["mock_repo"].assert_called_once_with("develop")
+        mock_build_setup["mock_repo"].assert_called_once_with("develop", None)
 
     def test_main_calls_get_parallel_jobs(self, mock_build_setup):
         """Test that main() calls get_parallel_jobs()."""
@@ -109,13 +113,16 @@ class TestMainOrchestration:
 
     def test_main_calls_functions_in_correct_order(self, mock_build_setup):
         """Test that main() calls functions in the correct order."""
-        main()
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("BRANCH", None)
+            os.environ.pop("COMMIT", None)
+            main()
         
         # Verify call order
         expected_calls = [
             call.get_platform_identifier(),
             call.configure_reproducible_environment(),
-            call.ensure_logos_storage_repo("master"),
+            call.ensure_logos_storage_repo("master", None),
             call.get_parallel_jobs(),
             call.build_libstorage(mock_build_setup["logos_storage_dir"], 4),
             call.get_host_triple(),
