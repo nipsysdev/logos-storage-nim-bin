@@ -12,7 +12,7 @@ class TestWindowsChecksumGeneration:
 
     @patch('src.artifacts.platform.system', return_value='Windows')
     @patch('src.artifacts.run_command')
-    def test_generate_checksum_uses_certutil_on_windows(self, mock_run, mock_system):
+    def test_generate_checksum_uses_certutil_on_windows(self, mock_run, mock_system, tmp_path):
         """Test that generate_checksum uses certutil on Windows."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["certutil", "-hashfile", "test.a", "SHA256"],
@@ -21,7 +21,7 @@ class TestWindowsChecksumGeneration:
             stderr=""
         )
         
-        artifact_path = Path("test.a")
+        artifact_path = tmp_path / "test.a"
         generate_checksum(artifact_path)
         
         mock_run.assert_called_once_with(["certutil", "-hashfile", str(artifact_path), "SHA256"])
