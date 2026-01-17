@@ -86,13 +86,10 @@ def build_libstorage(logos_storage_dir: Path, jobs: int) -> None:
     # Update submodules first
     print("Updating git submodules...")
     try:
-        # On Windows, use MSYS2 to run make
+        # On Windows, run make directly (we're already in MSYS2 shell)
         if platform.system().lower() == "windows":
-            # Convert Windows path to MSYS2 path format
-            msys_path = str(logos_storage_dir).replace('\\', '/').replace('C:', '/c')
-            # Use msys2 command which will be in PATH in MSYS2 environment
             run_command(
-                ["msys2", "-lc", f"cd {msys_path} && make deps"],
+                ["make", "-C", str(logos_storage_dir), "deps"],
                 env=build_env
             )
         else:
@@ -113,13 +110,10 @@ def build_libstorage(logos_storage_dir: Path, jobs: int) -> None:
     # Build with parallel jobs
     print(f"Building libstorage with {jobs} parallel jobs...")
     try:
-        # On Windows, use MSYS2 to run make
+        # On Windows, run make directly (we're already in MSYS2 shell)
         if platform.system().lower() == "windows":
-            # Convert Windows path to MSYS2 path format
-            msys_path = str(logos_storage_dir).replace('\\', '/').replace('C:', '/c')
-            # Use msys2 command which will be in PATH in MSYS2 environment
             run_command(
-                ["msys2", "-lc", f"cd {msys_path} && make -j{jobs} libstorage"],
+                ["make", "-j", str(jobs), "-C", str(logos_storage_dir), "libstorage"],
                 env=build_env
             )
         else:

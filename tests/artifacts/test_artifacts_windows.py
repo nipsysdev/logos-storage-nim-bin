@@ -118,50 +118,22 @@ class TestWindowsBuildCommand:
     @patch('src.artifacts.platform.system', return_value='Windows')
     @patch('src.utils.get_host_triple', return_value='x86_64')
     @patch('src.artifacts.run_command')
-    def test_build_libstorage_uses_msys2_on_windows(self, mock_run, mock_triple, mock_system):
-        """Test that build_libstorage uses MSYS2 on Windows."""
+    def test_build_libstorage_uses_make_on_windows(self, mock_run, mock_triple, mock_system):
+        """Test that build_libstorage uses make directly on Windows (running in MSYS2 shell)."""
         logos_storage_dir = Path("C:/logos-storage-nim")
         
         build_libstorage(logos_storage_dir, 4)
         
-        # Verify that MSYS2 is used for both deps and libstorage
+        # Verify that make is used directly (we're already in MSYS2 shell)
         assert mock_run.call_count == 2
         
         # Check first call (deps)
         first_call = mock_run.call_args_list[0]
-        assert first_call[0][0] == ["msys2", "-lc", "cd /c/logos-storage-nim && make deps"]
+        assert first_call[0][0] == ["make", "-C", str(logos_storage_dir), "deps"]
         
         # Check second call (libstorage)
         second_call = mock_run.call_args_list[1]
-        assert second_call[0][0] == ["msys2", "-lc", "cd /c/logos-storage-nim && make -j4 libstorage"]
-
-    @patch('src.artifacts.platform.system', return_value='Windows')
-    @patch('src.utils.get_host_triple', return_value='x86_64')
-    @patch('src.artifacts.run_command')
-    def test_build_libstorage_converts_windows_path_to_msys2(self, mock_run, mock_triple, mock_system):
-        """Test that build_libstorage converts Windows paths to MSYS2 format."""
-        logos_storage_dir = Path("C:/logos-storage-nim")
-        
-        build_libstorage(logos_storage_dir, 4)
-        
-        # Check that the path was converted from C:/ to /c/
-        first_call = mock_run.call_args_list[0]
-        assert "/c/logos-storage-nim" in first_call[0][0][2]
-        assert "C:" not in first_call[0][0][2]
-
-    @patch('src.artifacts.platform.system', return_value='Windows')
-    @patch('src.utils.get_host_triple', return_value='x86_64')
-    @patch('src.artifacts.run_command')
-    def test_build_libstorage_handles_backslashes(self, mock_run, mock_triple, mock_system):
-        """Test that build_libstorage handles Windows backslashes."""
-        logos_storage_dir = Path("C:\\logos-storage-nim")
-        
-        build_libstorage(logos_storage_dir, 4)
-        
-        # Check that backslashes were converted to forward slashes
-        first_call = mock_run.call_args_list[0]
-        assert "\\" not in first_call[0][0][2]
-        assert "/" in first_call[0][0][2]
+        assert second_call[0][0] == ["make", "-j", "4", "-C", str(logos_storage_dir), "libstorage"]
 
     @patch('src.artifacts.platform.system', return_value='Linux')
     @patch('src.utils.get_host_triple', return_value='x86_64')
@@ -172,7 +144,7 @@ class TestWindowsBuildCommand:
         
         build_libstorage(logos_storage_dir, 4)
         
-        # Verify that make is used directly (not MSYS2)
+        # Verify that make is used directly
         assert mock_run.call_count == 2
         
         # Check first call (deps)
