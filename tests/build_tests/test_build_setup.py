@@ -48,3 +48,18 @@ class TestMainSetup:
         main()
         
         mock_build_setup["mock_repo"].assert_called_once()
+
+    def test_main_uses_branch_and_commit_together(self, mock_build_setup):
+        """Test that main() accepts both BRANCH and COMMIT when pinning."""
+        with patch.dict(os.environ, {"BRANCH": "master", "COMMIT": "abc123def456"}, clear=False):
+            main()
+        
+        mock_build_setup["mock_repo"].assert_called_once_with("master", "abc123def456")
+
+    def test_main_uses_default_branch_when_commit_without_branch(self, mock_build_setup):
+        """Test that main() defaults to 'master' when COMMIT is set but BRANCH is not."""
+        with patch.dict(os.environ, {"COMMIT": "abc123def456"}, clear=False):
+            os.environ.pop("BRANCH", None)
+            main()
+        
+        mock_build_setup["mock_repo"].assert_called_once_with("master", "abc123def456")

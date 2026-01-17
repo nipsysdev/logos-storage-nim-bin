@@ -10,7 +10,7 @@ on:
 
 env:
   cache_nonce: 0
-  branch: master
+  pinned_branch: master
   pinned_commit: 1acedcf71c05e3e80e3d3634c719acf058357ffa
 
 jobs:
@@ -64,6 +64,7 @@ jobs:
       commit_hash: ${{ steps.check.outputs.commit_hash }}
       commit_short: ${{ steps.check.outputs.commit_short }}
       commit_date: ${{ steps.check.outputs.commit_date }}
+      branch_name: ${{ steps.check.outputs.branch_name }}
     steps:
       - name: Get latest release
         id: latest_release
@@ -76,17 +77,26 @@ jobs:
       - name: Check for new commits
         id: check
         run: |
-          # Use pinned commit if set, otherwise fetch latest from master
+          # Use pinned commit/branch if set, otherwise fetch latest from pinned_branch
           if [ -n "${{ env.pinned_commit }}" ]; then
+            # Validate that both pinned_branch and pinned_commit are set
+            if [ -z "${{ env.pinned_branch }}" ]; then
+              echo "Error: pinned_commit is set but pinned_branch is not set. Both must be provided together."
+              exit 1
+            fi
+            
             LATEST_COMMIT="${{ env.pinned_commit }}"
             LATEST_SHORT=$(echo $LATEST_COMMIT | cut -c1-7)
-            echo "Using pinned commit: $LATEST_SHORT"
+            BRANCH_NAME="${{ env.pinned_branch }}"
+            
+            echo "Using pinned commit: $LATEST_SHORT from branch: $BRANCH_NAME"
           else
             # Fetch latest commit from logos-storage-nim
-            git ls-remote https://github.com/logos-storage/logos-storage-nim.git master > latest.txt
+            BRANCH_NAME="${{ env.pinned_branch }}"
+            git ls-remote https://github.com/logos-storage/logos-storage-nim.git refs/heads/$BRANCH_NAME > latest.txt
             LATEST_COMMIT=$(awk '{print $1}' latest.txt)
             LATEST_SHORT=$(echo $LATEST_COMMIT | cut -c1-7)
-            echo "Using latest commit from master: $LATEST_SHORT"
+            echo "Using latest commit from $BRANCH_NAME: $LATEST_SHORT"
           fi
 
           # Fetch commit date using GitHub API
@@ -102,6 +112,7 @@ jobs:
             echo "commit_hash=$LATEST_COMMIT" >> $GITHUB_OUTPUT
             echo "commit_short=$LATEST_SHORT" >> $GITHUB_OUTPUT
             echo "commit_date=$COMMIT_DATE" >> $GITHUB_OUTPUT
+            echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
             echo "No previous release found, building for commit: $LATEST_SHORT"
             exit 0
           fi
@@ -115,6 +126,7 @@ jobs:
             echo "commit_hash=$LATEST_COMMIT" >> $GITHUB_OUTPUT
             echo "commit_short=$LATEST_SHORT" >> $GITHUB_OUTPUT
             echo "commit_date=$COMMIT_DATE" >> $GITHUB_OUTPUT
+            echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
             echo "New commit detected: $LATEST_SHORT"
           fi
 
@@ -163,6 +175,7 @@ jobs:
           make clean
           make
         env:
+          BRANCH: ${{ env.pinned_branch }}
           COMMIT: ${{ env.pinned_commit }}
 
       - name: Upload artifacts
@@ -238,22 +251,22 @@ jobs:
         uses: softprops/action-gh-release@v2
         continue-on-error: true
         with:
-          tag_name: ${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}
-          name: ${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}
+          tag_name: ${{ needs.check-updates.outputs.branch_name }}-${{ needs.check-updates.outputs.commit_short }}
+          name: ${{ needs.check-updates.outputs.branch_name }}-${{ needs.check-updates.outputs.commit_short }}
           body: |
             Pre-built libstorage binaries
 
             This release provides pre-compiled static libraries,
-            built automatically from the latest commit in the logos-storage-nim repository.
+            built automatically from the logos-storage-nim repository.
 
             Commit: ${{ needs.check-updates.outputs.commit_hash }}
-            Branch: ${{ env.branch }}
+            Branch: ${{ needs.check-updates.outputs.branch_name }}
             Date: ${{ needs.check-updates.outputs.commit_date }}
 
             Artifacts:
-            - Linux x86_64: logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-linux-amd64.tar.gz
-            - Linux AArch64: logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-linux-arm64.tar.gz
-            - macOS Apple Silicon: logos-storage-nim-${{ env.branch }}-${{ needs.check-updates.outputs.commit_short }}-darwin-arm64.tar.gz
+            - Linux x86_64: logos-storage-nim-${{ needs.check-updates.outputs.branch_name }}-${{ needs.check-updates.outputs.commit_short }}-linux-amd64.tar.gz
+            - Linux AArch64: logos-storage-nim-${{ needs.check-updates.outputs.branch_name }}-${{ needs.check-updates.outputs.commit_short }}-linux-arm64.tar.gz
+            - macOS Apple Silicon: logos-storage-nim-${{ needs.check-updates.outputs.branch_name }}-${{ needs.check-updates.outputs.commit_short }}-darwin-arm64.tar.gz
 
             Each archive contains:
             - libstorage.a: Main storage library

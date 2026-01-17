@@ -32,6 +32,30 @@ def validate_commit_exists(repo_dir: Path, commit: str) -> bool:
     return result.returncode == 0
 
 
+def validate_commit_in_branch(repo_dir: Path, commit: str, branch: str) -> bool:
+    """Validate that a commit exists in a specific branch.
+    
+    Args:
+        repo_dir: Path to the repository
+        commit: Commit hash to validate
+        branch: Branch name to check
+        
+    Returns:
+        True if commit exists in the branch, False otherwise
+    """
+    # Check if commit is reachable from the branch
+    result = run_command(
+        ["git", "-C", str(repo_dir), "branch", "--contains", commit],
+        check=False
+    )
+    
+    if result.returncode != 0:
+        return False
+    
+    # Check if the branch is in the output
+    return branch in result.stdout
+
+
 def clone_repository(target_dir: Path, branch: str, commit: Optional[str] = None) -> None:
     """Clone the logos-storage-nim repository.
     
@@ -123,24 +147,29 @@ def ensure_logos_storage_repo(branch: str, commit: Optional[str] = None) -> Tupl
     """Ensure the logos-storage-nim repository exists and is up to date.
     
     Args:
-        branch: Branch to use (mutually exclusive with commit)
-        commit: Optional commit hash to checkout (mutually exclusive with branch)
+        branch: Branch to use
+        commit: Optional commit hash to checkout
         
     Returns:
         Tuple of (repository path, commit info)
         
     Raises:
-        ValueError: If both branch and commit are specified
+        ValueError: If commit is specified but doesn't exist in the branch
     """
-    if branch and commit:
-        raise ValueError("Cannot specify both branch and commit. Use one or the other.")
-    
     logos_storage_dir = Path("logos-storage-nim")
     
     if not logos_storage_dir.exists():
         clone_repository(logos_storage_dir, branch, commit)
     else:
         update_repository(logos_storage_dir, branch, commit)
+    
+    # If both branch and commit are specified, validate commit is in branch
+    if branch and commit:
+        if not validate_commit_in_branch(logos_storage_dir, commit, branch):
+            raise ValueError(
+                f"Commit '{commit}' does not exist in branch '{branch}'. "
+                f"Please verify the commit hash and branch name."
+            )
     
     commit_info = get_commit_info(logos_storage_dir)
     return logos_storage_dir, commit_info

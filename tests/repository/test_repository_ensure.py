@@ -131,15 +131,53 @@ class TestEnsureLogosStorageRepo:
         assert isinstance(commit_info, CommitInfo)
         assert commit_info.branch == "HEAD"
 
-    def test_ensure_logos_storage_repo_raises_error_when_both_branch_and_commit(self):
-        """Test that ensure_logos_storage_repo raises ValueError when both branch and commit are specified."""
+    def test_ensure_logos_storage_repo_validates_commit_in_branch(self):
+        """Test that ensure_logos_storage_repo validates commit is in branch when both are provided."""
         branch = "master"
         commit = "abc123def456789abc123def456789abc123def"
         
-        with pytest.raises(ValueError) as exc_info:
-            ensure_logos_storage_repo(branch, commit)
+        # Custom responses for branch + commit
+        custom_responses = [
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # fetch --all --tags
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # checkout commit
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="  master\n", stderr=""),  # branch --contains
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123def456789abc123def456789abc123def\n", stderr=""),  # rev-parse HEAD
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123d\n", stderr=""),  # rev-parse --short HEAD
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="master\n", stderr=""),  # rev-parse --abbrev-ref HEAD
+        ]
         
-        assert "Cannot specify both branch and commit" in str(exc_info.value)
+        with patch("pathlib.Path.exists", return_value=True):
+            with patch("src.repository.validate_commit_exists", return_value=True):
+                with patch("src.repository.run_command") as mock_run:
+                    mock_run.side_effect = custom_responses
+                    
+                    repo_dir, commit_info = ensure_logos_storage_repo(branch, commit)
+        
+        assert repo_dir == Path("logos-storage-nim")
+        assert isinstance(commit_info, CommitInfo)
+        assert commit_info.branch == "master"
+
+    def test_ensure_logos_storage_repo_raises_error_when_commit_not_in_branch(self):
+        """Test that ensure_logos_storage_repo raises ValueError when commit is not in branch."""
+        branch = "master"
+        commit = "abc123def456789abc123def456789abc123def"
+        
+        # Custom responses where commit is not in master branch
+        custom_responses = [
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # fetch --all --tags
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # checkout commit
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="  develop\n", stderr=""),  # branch --contains (not master)
+        ]
+        
+        with patch("pathlib.Path.exists", return_value=True):
+            with patch("src.repository.validate_commit_exists", return_value=True):
+                with patch("src.repository.run_command") as mock_run:
+                    mock_run.side_effect = custom_responses
+                    
+                    with pytest.raises(ValueError) as exc_info:
+                        ensure_logos_storage_repo(branch, commit)
+        
+        assert "does not exist in branch" in str(exc_info.value)
 
     def test_ensure_logos_storage_repo_with_commit_returns_detached_head_branch(self):
         """Test that ensure_logos_storage_repo returns 'HEAD' as branch when in detached state."""

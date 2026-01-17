@@ -31,19 +31,14 @@ def main() -> None:
     branch = os.environ.get("BRANCH")
     commit = os.environ.get("COMMIT")
     
-    # Validate mutual exclusivity
-    if branch and commit:
-        print("Error: Cannot specify both BRANCH and COMMIT environment variables.")
-        print("Use one or the other.")
-        sys.exit(1)
-    
-    # Set default branch if neither is specified
-    if not branch and not commit:
+    # Set default branch if not specified
+    if not branch:
         branch = "master"
     
     print("Building logos-storage-nim")
     print(f"Platform: {platform}")
     if commit:
+        print(f"Branch: {branch}")
         print(f"Commit: {commit}")
     else:
         print(f"Branch: {branch}")
