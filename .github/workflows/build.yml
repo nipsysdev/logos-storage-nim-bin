@@ -129,6 +129,7 @@ jobs:
         env:
           BRANCH: ${{ env.pinned_branch }}
           COMMIT: ${{ env.pinned_commit }}
+          PATH: ${{ env.Path }}:/c/Users/runneradmin/AppData/Local/mise/installs/python/3.14.2
 
       - name: Build logos-storage-nim (Unix)
         if: runner.os != 'Windows'
