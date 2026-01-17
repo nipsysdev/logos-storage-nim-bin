@@ -129,11 +129,11 @@ class TestWindowsBuildCommand:
         
         # Check first call (deps)
         first_call = mock_run.call_args_list[0]
-        assert first_call[0][0] == [r"C:\msys64\usr\bin\bash.exe", "-lc", "cd /c/logos-storage-nim && make deps"]
+        assert first_call[0][0] == ["msys2", "-lc", "cd /c/logos-storage-nim && make deps"]
         
         # Check second call (libstorage)
         second_call = mock_run.call_args_list[1]
-        assert second_call[0][0] == [r"C:\msys64\usr\bin\bash.exe", "-lc", "cd /c/logos-storage-nim && make -j4 libstorage"]
+        assert second_call[0][0] == ["msys2", "-lc", "cd /c/logos-storage-nim && make -j4 libstorage"]
 
     @patch('src.artifacts.platform.system', return_value='Windows')
     @patch('src.utils.get_host_triple', return_value='x86_64')

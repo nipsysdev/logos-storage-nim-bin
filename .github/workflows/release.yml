@@ -181,11 +181,27 @@ jobs:
       - name: Build (Windows)
         if: runner.os == 'Windows'
         run: |
-          C:\msys64\usr\bin\bash.exe -lc 'make clean && make'
+          echo "Current directory:"
+          pwd
+          echo "Listing files:"
+          ls -la
+          echo "PATH:"
+          echo $PATH
+          echo "Checking for Makefile:"
+          if [ -f "Makefile" ]; then
+            echo "Makefile found"
+            cat Makefile
+          else
+            echo "Makefile NOT found"
+          fi
+          echo "Running make clean..."
+          make clean
+          echo "Running make..."
+          make
         env:
           BRANCH: ${{ env.pinned_branch }}
           COMMIT: ${{ env.pinned_commit }}
-        shell: cmd
+        shell: msys2
 
       - name: Build (Unix)
         if: runner.os != 'Windows'
