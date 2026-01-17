@@ -172,4 +172,10 @@ def ensure_logos_storage_repo(branch: str, commit: Optional[str] = None) -> Tupl
             )
     
     commit_info = get_commit_info(logos_storage_dir)
+    
+    # If both branch and commit are specified, override the branch name
+    # This ensures artifact names use the actual branch name instead of "HEAD"
+    if branch and commit:
+        commit_info.branch = branch
+    
     return logos_storage_dir, commit_info

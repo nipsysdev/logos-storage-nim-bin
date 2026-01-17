@@ -180,7 +180,7 @@ class TestEnsureLogosStorageRepo:
         assert "does not exist in branch" in str(exc_info.value)
 
     def test_ensure_logos_storage_repo_with_commit_returns_detached_head_branch(self):
-        """Test that ensure_logos_storage_repo returns 'HEAD' as branch when in detached state."""
+        """Test that ensure_logos_storage_repo returns 'HEAD' as branch when in detached state without branch."""
         commit = "abc123def456789abc123def456789abc123def"
         
         # Custom responses where rev-parse --abbrev-ref HEAD returns "HEAD"
@@ -200,3 +200,28 @@ class TestEnsureLogosStorageRepo:
                 repo_dir, commit_info = ensure_logos_storage_repo("", commit)
         
         assert commit_info.branch == "HEAD"
+
+    def test_ensure_logos_storage_repo_with_branch_and_commit_preserves_branch_name(self):
+        """Test that ensure_logos_storage_repo preserves branch name when both branch and commit are provided."""
+        branch = "master"
+        commit = "abc123def456789abc123def456789abc123def"
+        
+        # Custom responses where rev-parse --abbrev-ref HEAD returns "HEAD" (detached state)
+        custom_responses = [
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # clone --no-checkout
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # fetch --all --tags
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # checkout commit
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="  master\n", stderr=""),  # branch --contains
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123def456789abc123def456789abc123def\n", stderr=""),  # rev-parse HEAD
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123d\n", stderr=""),  # rev-parse --short HEAD
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="HEAD\n", stderr=""),  # rev-parse --abbrev-ref HEAD
+        ]
+        
+        with patch("pathlib.Path.exists", return_value=False):
+            with patch("src.repository.run_command") as mock_run:
+                mock_run.side_effect = custom_responses
+                
+                repo_dir, commit_info = ensure_logos_storage_repo(branch, commit)
+        
+        # Branch name should be preserved, not "HEAD"
+        assert commit_info.branch == "master"
