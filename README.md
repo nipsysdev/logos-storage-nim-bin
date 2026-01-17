@@ -78,7 +78,6 @@ make build        # Build for host architecture
 make clean        # Clean build artifacts
 make clean-all    # Clean everything including dist/ and logos-storage-nim/
 make ci-build     # Test build.yml workflow locally (requires act)
-make ci-test      # Test test.yml workflow locally (requires act)
 make ci-release   # Test release.yml workflow locally (requires act)
 make help         # Show all targets
 ```
@@ -98,9 +97,8 @@ pytest --cov=src --cov-report=html
 
 ## CI/CD
 
-- **Build**: Runs on push/PR to `main` branch
-- **Release**: Scheduled at 00:00 UTC, creates releases when new commits are detected
-- **Tests**: Runs on push/PR to `main` branch
+- **Build**: Runs on push to `main` and on any PRs
+- **Release**: Runs on push to `main`. Also scheduled at 00:00 UTC. Creates releases when new logos-storage-nim commits are detected
 
 ## Versioning
 
