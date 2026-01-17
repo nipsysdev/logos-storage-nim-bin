@@ -61,12 +61,33 @@ def build_libstorage(logos_storage_dir: Path, jobs: int) -> None:
     """Build libstorage for host architecture."""
     print("Building libstorage for host architecture...")
     
+    # Set CPU target flags for maximum compatibility based on architecture
+    # This ensures binaries work on all CPUs of the target architecture
+    from src.utils import get_host_triple
+    
+    arch = get_host_triple()
+    build_env = {
+        "STATIC": "1",
+    }
+    
+    # Apply architecture-specific compiler flags
+    if arch == "x86_64":
+        build_env["CFLAGS"] = "-march=x86-64 -mtune=generic"
+        build_env["CXXFLAGS"] = "-march=x86-64 -mtune=generic"
+        print(f"Building for x86_64 with baseline compatibility flags")
+    elif arch == "aarch64":
+        build_env["CFLAGS"] = "-march=armv8-a -mtune=generic"
+        build_env["CXXFLAGS"] = "-march=armv8-a -mtune=generic"
+        print(f"Building for ARM64 with baseline compatibility flags")
+    else:
+        print(f"Building for {arch} with default compiler settings")
+    
     # Update submodules first
     print("Updating git submodules...")
     try:
         run_command(
             ["make", "-C", str(logos_storage_dir), "deps"],
-            env={"STATIC": "1"}
+            env=build_env
         )
     except subprocess.CalledProcessError as e:
         print(f"Error: Failed to update git submodules")
@@ -83,7 +104,7 @@ def build_libstorage(logos_storage_dir: Path, jobs: int) -> None:
     try:
         run_command(
             ["make", "-j", str(jobs), "-C", str(logos_storage_dir), "libstorage"],
-            env={"STATIC": "1"}
+            env=build_env
         )
     except subprocess.CalledProcessError as e:
         print(f"Error: Failed to build libstorage")

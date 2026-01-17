@@ -64,7 +64,64 @@ class TestBuildLibstorage:
         # Verify STATIC=1 was set for all make commands
         for call in mock_run.call_args_list:
             if "make" in str(call[0][0]) and len(call) > 1 and 'env' in call[1]:
-                assert call[1]['env'] == {"STATIC": "1"}
+                assert "STATIC" in call[1]['env']
+                assert call[1]['env']['STATIC'] == "1"
+
+    def test_build_libstorage_sets_x86_64_flags(self):
+        """Test that build_libstorage sets x86_64 compatibility flags on x86_64."""
+        logos_storage_dir = Path("/tmp/test")
+        jobs = 4
+        
+        with patch("src.artifacts.run_command") as mock_run:
+            with patch("src.utils.get_host_triple", return_value="x86_64"):
+                build_libstorage(logos_storage_dir, jobs)
+        
+        # Verify x86_64 flags were set
+        for call in mock_run.call_args_list:
+            if "make" in str(call[0][0]) and len(call) > 1 and 'env' in call[1]:
+                assert "CFLAGS" in call[1]['env']
+                assert "-march=x86-64" in call[1]['env']['CFLAGS']
+                assert "-mtune=generic" in call[1]['env']['CFLAGS']
+                assert "CXXFLAGS" in call[1]['env']
+                assert "-march=x86-64" in call[1]['env']['CXXFLAGS']
+                assert "-mtune=generic" in call[1]['env']['CXXFLAGS']
+
+    def test_build_libstorage_sets_arm64_flags(self):
+        """Test that build_libstorage sets ARM64 compatibility flags on ARM64."""
+        logos_storage_dir = Path("/tmp/test")
+        jobs = 4
+        
+        with patch("src.artifacts.run_command") as mock_run:
+            with patch("src.utils.get_host_triple", return_value="aarch64"):
+                build_libstorage(logos_storage_dir, jobs)
+        
+        # Verify ARM64 flags were set
+        for call in mock_run.call_args_list:
+            if "make" in str(call[0][0]) and len(call) > 1 and 'env' in call[1]:
+                assert "CFLAGS" in call[1]['env']
+                assert "-march=armv8-a" in call[1]['env']['CFLAGS']
+                assert "-mtune=generic" in call[1]['env']['CFLAGS']
+                assert "CXXFLAGS" in call[1]['env']
+                assert "-march=armv8-a" in call[1]['env']['CXXFLAGS']
+                assert "-mtune=generic" in call[1]['env']['CXXFLAGS']
+
+    def test_build_libstorage_uses_default_flags_for_unknown_arch(self):
+        """Test that build_libstorage uses default settings for unknown architectures."""
+        logos_storage_dir = Path("/tmp/test")
+        jobs = 4
+        
+        with patch("src.artifacts.run_command") as mock_run:
+            with patch("src.utils.get_host_triple", return_value="riscv64"):
+                build_libstorage(logos_storage_dir, jobs)
+        
+        # Verify no architecture-specific flags were set
+        for call in mock_run.call_args_list:
+            if "make" in str(call[0][0]) and len(call) > 1 and 'env' in call[1]:
+                assert "STATIC" in call[1]['env']
+                assert call[1]['env']['STATIC'] == "1"
+                # CFLAGS and CXXFLAGS should not be set for unknown architectures
+                assert "CFLAGS" not in call[1]['env']
+                assert "CXXFLAGS" not in call[1]['env']
 
     def test_build_libstorage_passes_cwd(self):
         """Test that build_libstorage passes correct working directory."""
