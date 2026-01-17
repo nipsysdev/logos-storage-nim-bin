@@ -71,6 +71,9 @@ jobs:
           - os: macos
             cpu: arm64
             builder: macos-latest
+          - os: windows
+            cpu: amd64
+            builder: windows-latest
 
     steps:
       - name: Checkout code
@@ -84,7 +87,11 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          if [ "$RUNNER_OS" == "Linux" ]; then
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            # MSYS2 is pre-installed on windows-latest
+            # Install required packages via pacman
+            msys2 -c 'pacman -S --noconfirm --needed base-devel mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make git'
+          elif [ "$RUNNER_OS" == "Linux" ]; then
             sudo apt-get update
             sudo apt-get install -y git make gcc binutils cmake
           fi

@@ -147,6 +147,9 @@ jobs:
           - os: macos
             cpu: arm64
             builder: macos-latest
+          - os: windows
+            cpu: amd64
+            builder: windows-latest
 
     name: ${{ matrix.os }}-${{ matrix.cpu }}
     runs-on: ${{ matrix.builder }}
@@ -164,7 +167,11 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          if [ "$RUNNER_OS" == "Linux" ]; then
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            # MSYS2 is pre-installed on windows-latest
+            # Install required packages via pacman
+            msys2 -c 'pacman -S --noconfirm --needed base-devel mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make git'
+          elif [ "$RUNNER_OS" == "Linux" ]; then
             sudo apt-get update
             sudo apt-get install -y git make gcc binutils cmake
           fi
@@ -267,6 +274,7 @@ jobs:
             - Linux x86_64: logos-storage-nim-${{ needs.check-updates.outputs.branch_name }}-${{ needs.check-updates.outputs.commit_short }}-linux-amd64.tar.gz
             - Linux AArch64: logos-storage-nim-${{ needs.check-updates.outputs.branch_name }}-${{ needs.check-updates.outputs.commit_short }}-linux-arm64.tar.gz
             - macOS Apple Silicon: logos-storage-nim-${{ needs.check-updates.outputs.branch_name }}-${{ needs.check-updates.outputs.commit_short }}-darwin-arm64.tar.gz
+            - Windows x86_64: logos-storage-nim-${{ needs.check-updates.outputs.branch_name }}-${{ needs.check-updates.outputs.commit_short }}-windows-amd64.tar.gz
 
             Each archive contains:
             - libstorage.a: Main storage library

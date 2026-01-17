@@ -15,6 +15,10 @@ Pre-built static libraries for [logos-storage-nim](https://github.com/logos-stor
 
 - **Apple Silicon (ARM64)**: `darwin-arm64`
 
+### Windows
+
+- **x86_64 (amd64)**: `windows-amd64`
+
 ## Quick Start
 
 Download the latest release from [GitHub Releases](https://github.com/nipsysdev/logos-storage-nim-bin/releases/latest).
@@ -51,6 +55,12 @@ The archive includes:
 - Make
 - GCC
 - ar
+
+**Windows**: Install MSYS2 from https://www.msys2.org/ and install required packages:
+
+```bash
+pacman -S --needed base-devel mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make git
+```
 
 ### Build
 

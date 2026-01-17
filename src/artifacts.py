@@ -1,6 +1,7 @@
 """Artifact management for build system."""
 
 import os
+import platform
 import shutil
 import subprocess
 import tempfile
@@ -85,10 +86,19 @@ def build_libstorage(logos_storage_dir: Path, jobs: int) -> None:
     # Update submodules first
     print("Updating git submodules...")
     try:
-        run_command(
-            ["make", "-C", str(logos_storage_dir), "deps"],
-            env=build_env
-        )
+        # On Windows, use MSYS2 to run make
+        if platform.system().lower() == "windows":
+            # Convert Windows path to MSYS2 path format
+            msys_path = str(logos_storage_dir).replace('\\', '/').replace('C:', '/c')
+            run_command(
+                ["msys2", "-c", f"cd {msys_path} && make deps"],
+                env=build_env
+            )
+        else:
+            run_command(
+                ["make", "-C", str(logos_storage_dir), "deps"],
+                env=build_env
+            )
     except subprocess.CalledProcessError as e:
         print(f"Error: Failed to update git submodules")
         print(f"Command: {' '.join(e.cmd)}")
@@ -102,10 +112,19 @@ def build_libstorage(logos_storage_dir: Path, jobs: int) -> None:
     # Build with parallel jobs
     print(f"Building libstorage with {jobs} parallel jobs...")
     try:
-        run_command(
-            ["make", "-j", str(jobs), "-C", str(logos_storage_dir), "libstorage"],
-            env=build_env
-        )
+        # On Windows, use MSYS2 to run make
+        if platform.system().lower() == "windows":
+            # Convert Windows path to MSYS2 path format
+            msys_path = str(logos_storage_dir).replace('\\', '/').replace('C:', '/c')
+            run_command(
+                ["msys2", "-c", f"cd {msys_path} && make -j{jobs} libstorage"],
+                env=build_env
+            )
+        else:
+            run_command(
+                ["make", "-j", str(jobs), "-C", str(logos_storage_dir), "libstorage"],
+                env=build_env
+            )
     except subprocess.CalledProcessError as e:
         print(f"Error: Failed to build libstorage")
         print(f"Command: {' '.join(e.cmd)}")
@@ -207,8 +226,17 @@ def copy_libraries(libraries: List[Path], output_dir: Path) -> List[Path]:
 def generate_checksum(artifact_path: Path) -> None:
     """Generate SHA256 checksum for an artifact."""
     checksum_path = artifact_path.with_suffix(".a.sha256")
-    result = run_command(["sha256sum", str(artifact_path)])
-    checksum_path.write_text(result.stdout)
+    
+    # Use certutil on Windows, sha256sum on Unix
+    if platform.system().lower() == "windows":
+        result = run_command(["certutil", "-hashfile", str(artifact_path), "SHA256"])
+        # certutil output format is different
+        checksum_line = result.stdout.strip().split('\n')[1].replace(' ', '')
+        checksum_path.write_text(f"{checksum_line}  {artifact_path.name}")
+    else:
+        result = run_command(["sha256sum", str(artifact_path)])
+        checksum_path.write_text(result.stdout)
+    
     print(f"✓ Generated checksum: {checksum_path}")
 
 
@@ -225,19 +253,23 @@ def verify_checksum(artifact_path: Path) -> bool:
     expected_hash = expected_checksum.split()[0]
     
     # Compute actual checksum
-    result = run_command(["sha256sum", str(artifact_path)])
-    actual_checksum = result.stdout.strip()
-    actual_hash = actual_checksum.split()[0]
+    if platform.system().lower() == "windows":
+        result = run_command(["certutil", "-hashfile", str(artifact_path), "SHA256"])
+        actual_checksum = result.stdout.strip().split('\n')[1].replace(' ', '')
+    else:
+        result = run_command(["sha256sum", str(artifact_path)])
+        actual_checksum = result.stdout.strip()
+        actual_hash = actual_checksum.split()[0]
     
     # Compare
-    if expected_hash == actual_hash:
+    if expected_hash == actual_checksum:
         print(f"✓ Checksum verification passed for {artifact_path.name}")
         return True
     else:
         raise ValueError(
             f"Checksum verification failed for {artifact_path.name}!\n"
             f"  Expected: {expected_hash}\n"
-            f"  Actual:   {actual_hash}"
+            f"  Actual:   {actual_checksum}"
         )
 
 
@@ -291,14 +323,21 @@ def generate_sha256sums(output_dir: Path) -> Path:
     # Generate checksums without changing directory
     checksums = []
     for file_path in sorted(files_to_checksum):
-        result = run_command(["sha256sum", str(file_path)])
-        # Extract just the filename from the output
-        checksum_line = result.stdout.strip()
-        # Replace full path with just filename
-        checksum_parts = checksum_line.split()
-        if len(checksum_parts) >= 2:
-            checksum_parts[1] = file_path.name
-            checksums.append("  ".join(checksum_parts))
+        # Use certutil on Windows, sha256sum on Unix
+        if platform.system().lower() == "windows":
+            result = run_command(["certutil", "-hashfile", str(file_path), "SHA256"])
+            # certutil output format is different
+            checksum_line = result.stdout.strip().split('\n')[1].replace(' ', '')
+            checksums.append(f"{checksum_line}  {file_path.name}")
+        else:
+            result = run_command(["sha256sum", str(file_path)])
+            # Extract just the filename from the output
+            checksum_line = result.stdout.strip()
+            # Replace full path with just filename
+            checksum_parts = checksum_line.split()
+            if len(checksum_parts) >= 2:
+                checksum_parts[1] = file_path.name
+                checksums.append("  ".join(checksum_parts))
     
     # Write checksums file
     checksums_path.write_text("\n".join(checksums) + "\n")
