@@ -154,7 +154,7 @@ jobs:
           make clean
           make
         env:
-          BRANCH: ${{ env.branch }}
+          COMMIT: 1acedcf71c05e3e80e3d3634c719acf058357ffa
 
       - name: Upload artifacts
         if: env.ACT != 'true'

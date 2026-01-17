@@ -98,4 +98,4 @@ jobs:
           make clean
           make
         env:
-          BRANCH: ${{ github.event.inputs.branch || 'master' }}
+          COMMIT: 1acedcf71c05e3e80e3d3634c719acf058357ffa
