@@ -90,8 +90,10 @@ def build_libstorage(logos_storage_dir: Path, jobs: int) -> None:
         if platform.system().lower() == "windows":
             # Convert Windows path to MSYS2 path format
             msys_path = str(logos_storage_dir).replace('\\', '/').replace('C:', '/c')
+            # Use the full path to MSYS2 bash
+            msys_bash = r"C:\msys64\usr\bin\bash.exe"
             run_command(
-                ["msys2", "-c", f"cd {msys_path} && make deps"],
+                [msys_bash, "-lc", f"cd {msys_path} && make deps"],
                 env=build_env
             )
         else:
@@ -116,8 +118,10 @@ def build_libstorage(logos_storage_dir: Path, jobs: int) -> None:
         if platform.system().lower() == "windows":
             # Convert Windows path to MSYS2 path format
             msys_path = str(logos_storage_dir).replace('\\', '/').replace('C:', '/c')
+            # Use the full path to MSYS2 bash
+            msys_bash = r"C:\msys64\usr\bin\bash.exe"
             run_command(
-                ["msys2", "-c", f"cd {msys_path} && make -j{jobs} libstorage"],
+                [msys_bash, "-lc", f"cd {msys_path} && make -j{jobs} libstorage"],
                 env=build_env
             )
         else:

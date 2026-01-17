@@ -85,22 +85,34 @@ jobs:
           enable: true
           cache: true
 
-      - name: Install build dependencies
+      - name: Install build dependencies (Windows)
+        if: runner.os == 'Windows'
         run: |
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            # MSYS2 is pre-installed on windows-latest
-            # Install required packages via pacman
-            msys2 -c 'pacman -S --noconfirm --needed base-devel mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make git'
-          elif [ "$RUNNER_OS" == "Linux" ]; then
-            sudo apt-get update
-            sudo apt-get install -y git make gcc binutils cmake
-          fi
+          C:\msys64\usr\bin\bash.exe -lc 'pacman -S --noconfirm --needed base-devel mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make git'
+        shell: cmd
+
+      - name: Install build dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git make gcc binutils cmake
         shell: bash
 
-      - name: Build logos-storage-nim
+      - name: Build logos-storage-nim (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          C:\msys64\usr\bin\bash.exe -lc 'make clean && make'
+        env:
+          BRANCH: ${{ env.pinned_branch }}
+          COMMIT: ${{ env.pinned_commit }}
+        shell: cmd
+
+      - name: Build logos-storage-nim (Unix)
+        if: runner.os != 'Windows'
         run: |
           make clean
           make
         env:
           BRANCH: ${{ env.pinned_branch }}
           COMMIT: ${{ env.pinned_commit }}
+        shell: bash
