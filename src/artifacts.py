@@ -229,21 +229,21 @@ def verify_checksum(artifact_path: Path) -> bool:
     # Compute actual checksum
     if platform.system().lower() == "windows":
         result = run_command(["certutil", "-hashfile", str(artifact_path), "SHA256"])
-        actual_checksum = result.stdout.strip().split('\n')[1].replace(' ', '')
+        actual_hash = result.stdout.strip().split('\n')[1].replace(' ', '')
     else:
         result = run_command(["sha256sum", str(artifact_path)])
         actual_checksum = result.stdout.strip()
         actual_hash = actual_checksum.split()[0]
     
     # Compare
-    if expected_hash == actual_checksum:
+    if expected_hash == actual_hash:
         print(f"[OK] Checksum verification passed for {artifact_path.name}")
         return True
     else:
         raise ValueError(
             f"Checksum verification failed for {artifact_path.name}!\n"
             f"  Expected: {expected_hash}\n"
-            f"  Actual:   {actual_checksum}"
+            f"  Actual:   {actual_hash}"
         )
 
 
