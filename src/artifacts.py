@@ -26,7 +26,6 @@ def clean_build_artifacts(logos_storage_dir: Path) -> None:
     build_dirs = [
         "vendor/nim-nat-traversal/vendor/miniupnp/miniupnpc/build",
         "vendor/nim-nat-traversal/vendor/libnatpmp-upstream/build",
-        "vendor/nim-circom-compat/vendor/circom-compat-ffi/target",
         "vendor/nim-leveldbstatic/build",
         "build",
         "nimcache/release",
@@ -151,7 +150,6 @@ def collect_artifacts(
         ("libstorage.a", logos_storage_dir / "build" / "libstorage.a"),
         ("libnatpmp.a", logos_storage_dir / "vendor" / "nim-nat-traversal" / "vendor" / "libnatpmp-upstream" / "libnatpmp.a"),
         ("libminiupnpc.a", logos_storage_dir / "vendor" / "nim-nat-traversal" / "vendor" / "miniupnp" / "miniupnpc" / "build" / "libminiupnpc.a"),
-        ("libcircom_compat_ffi.a", logos_storage_dir / "vendor" / "nim-circom-compat" / "vendor" / "circom-compat-ffi" / "target" / "release" / "libcircom_compat_ffi.a"),
         ("libbacktrace.a", logos_storage_dir / "vendor" / "nim-libbacktrace" / "install" / "usr" / "lib" / "libbacktrace.a"),
     ]
     
@@ -161,19 +159,6 @@ def collect_artifacts(
             raise FileNotFoundError(f"{name} not found at {path}")
         libraries.append(path)
         print(f"✓ Found {name}")
-    
-    # Handle leopard library (check release first, then debug)
-    leopard_release = logos_storage_dir / "nimcache" / "release" / "libstorage" / "vendor_leopard" / "liblibleopard.a"
-    leopard_debug = logos_storage_dir / "nimcache" / "debug" / "libstorage" / "vendor_leopard" / "liblibleopard.a"
-    
-    if path_exists(leopard_release):
-        libraries.append(leopard_release)
-        print(f"✓ Found liblibleopard.a (release)")
-    elif path_exists(leopard_debug):
-        libraries.append(leopard_debug)
-        print(f"✓ Found liblibleopard.a (debug)")
-    else:
-        raise FileNotFoundError("liblibleopard.a not found (checked release and debug locations)")
     
     return libraries
 
