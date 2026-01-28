@@ -36,9 +36,7 @@ The archive includes:
 - `libstorage.a` - Main storage library
 - `libnatpmp.a` - NAT-PMP library
 - `libminiupnpc.a` - MiniUPnP library
-- `libcircom_compat_ffi.a` - Circom compatibility library
 - `libbacktrace.a` - Backtrace library
-- `libleopard.a` - Leopard erasure coding library
 - `libstorage.h` - Header file
 - `SHA256SUMS.txt` - SHA256 checksums for all files
 

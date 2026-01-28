@@ -271,9 +271,7 @@ jobs:
             - libstorage.a: Main storage library
             - libnatpmp.a: NAT-PMP library
             - libminiupnpc.a: MiniUPnP library
-            - libcircom_compat_ffi.a: Circom compatibility library
             - libbacktrace.a: Backtrace library
-            - libleopard.a: Leopard erasure coding library
             - libstorage.h: C header file
             - SHA256SUMS.txt: Checksums for all files
 
