@@ -161,10 +161,17 @@ def collect_artifacts(
     libraries = []
     
     # Define all libraries to collect
+    # Note: On Windows, libminiupnpc.a is built in the root of miniupnpc directory,
+    # not in build/ subdirectory (uses Makefile.mingw)
+    if platform.system().lower() == "windows":
+        miniupnpc_path = logos_storage_dir / "vendor" / "nim-nat-traversal" / "vendor" / "miniupnp" / "miniupnpc" / "libminiupnpc.a"
+    else:
+        miniupnpc_path = logos_storage_dir / "vendor" / "nim-nat-traversal" / "vendor" / "miniupnp" / "miniupnpc" / "build" / "libminiupnpc.a"
+    
     artifact_paths = [
         ("libstorage.a", logos_storage_dir / "build" / "libstorage.a"),
         ("libnatpmp.a", logos_storage_dir / "vendor" / "nim-nat-traversal" / "vendor" / "libnatpmp-upstream" / "libnatpmp.a"),
-        ("libminiupnpc.a", logos_storage_dir / "vendor" / "nim-nat-traversal" / "vendor" / "miniupnp" / "miniupnpc" / "build" / "libminiupnpc.a"),
+        ("libminiupnpc.a", miniupnpc_path),
         ("libbacktrace.a", logos_storage_dir / "vendor" / "nim-libbacktrace" / "install" / "usr" / "lib" / "libbacktrace.a"),
     ]
     
