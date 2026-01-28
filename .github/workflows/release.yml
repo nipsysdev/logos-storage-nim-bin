@@ -214,7 +214,35 @@ jobs:
           path: dist/*/
           retention-days: 30
 
-      - name: Verify artifacts
+      - name: Verify artifacts (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          echo "Verifying artifacts..."
+          if [ -d "dist" ]; then
+            # List all library files
+            find dist -name "*.a" -type f | while read lib; do
+              echo "Found: $lib"
+              ls -lh "$lib"
+            done
+            
+            # Verify SHA256SUMS.txt
+            find dist -name "SHA256SUMS.txt" -type f | while read checksum_file; do
+              echo "Verifying checksums in: $checksum_file"
+              # Change to the directory containing the checksum file before verification
+              checksum_dir=$(dirname "$checksum_file")
+              (cd "$checksum_dir" && sha256sum -c "SHA256SUMS.txt")
+            done
+            
+            echo ""
+            echo "Artifacts are available in: $(pwd)/dist/"
+          else
+            echo "No dist directory found"
+          fi
+
+      - name: Verify artifacts (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
         run: |
           echo "Verifying artifacts..."
           if [ -d "dist" ]; then
