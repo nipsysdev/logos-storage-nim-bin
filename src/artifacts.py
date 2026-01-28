@@ -85,17 +85,10 @@ def build_libstorage(logos_storage_dir: Path, jobs: int) -> None:
     # Update submodules first
     print("Updating git submodules...")
     try:
-        # On Windows, run make directly (we're already in MSYS2 shell)
-        if platform.system().lower() == "windows":
-            run_command(
-                ["make", "-C", str(logos_storage_dir), "deps"],
-                env=build_env
-            )
-        else:
-            run_command(
-                ["make", "-C", str(logos_storage_dir), "deps"],
-                env=build_env
-            )
+        run_command(
+            ["make", "-C", str(logos_storage_dir), "deps"],
+            env=build_env
+        )
     except subprocess.CalledProcessError as e:
         print(f"Error: Failed to update git submodules")
         print(f"Command: {' '.join(e.cmd)}")
@@ -109,17 +102,10 @@ def build_libstorage(logos_storage_dir: Path, jobs: int) -> None:
     # Build with parallel jobs
     print(f"Building libstorage with {jobs} parallel jobs...")
     try:
-        # On Windows, run make directly (we're already in MSYS2 shell)
-        if platform.system().lower() == "windows":
-            run_command(
-                ["make", "-j", str(jobs), "-C", str(logos_storage_dir), "libstorage"],
-                env=build_env
-            )
-        else:
-            run_command(
-                ["make", "-j", str(jobs), "-C", str(logos_storage_dir), "libstorage"],
-                env=build_env
-            )
+        run_command(
+            ["make", "-j", str(jobs), "-C", str(logos_storage_dir), "libstorage"],
+            env=build_env
+        )
     except subprocess.CalledProcessError as e:
         print(f"Error: Failed to build libstorage")
         print(f"Command: {' '.join(e.cmd)}")
