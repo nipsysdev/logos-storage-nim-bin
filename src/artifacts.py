@@ -173,7 +173,7 @@ def collect_artifacts(
         if not path_exists(path):
             raise FileNotFoundError(f"{name} not found at {path}")
         libraries.append(path)
-        print(f"✓ Found {name}")
+        print(f"[OK] Found {name}")
     
     return libraries
 
@@ -198,9 +198,9 @@ def copy_libraries(libraries: List[Path], output_dir: Path) -> List[Path]:
         dest_path = output_dir / lib_path.name
         shutil.copy2(lib_path, dest_path)
         copied_libraries.append(dest_path)
-        print(f"✓ Copied {lib_path.name} to {dest_path}")
+        print(f"[OK] Copied {lib_path.name} to {dest_path}")
     
-    print(f"✓ Successfully copied {len(copied_libraries)} libraries")
+    print(f"[OK] Successfully copied {len(copied_libraries)} libraries")
     return copied_libraries
 
 
@@ -218,7 +218,7 @@ def generate_checksum(artifact_path: Path) -> None:
         result = run_command(["sha256sum", str(artifact_path)])
         checksum_path.write_text(result.stdout)
     
-    print(f"✓ Generated checksum: {checksum_path}")
+    print(f"[OK] Generated checksum: {checksum_path}")
 
 
 def verify_checksum(artifact_path: Path) -> bool:
@@ -244,7 +244,7 @@ def verify_checksum(artifact_path: Path) -> bool:
     
     # Compare
     if expected_hash == actual_checksum:
-        print(f"✓ Checksum verification passed for {artifact_path.name}")
+        print(f"[OK] Checksum verification passed for {artifact_path.name}")
         return True
     else:
         raise ValueError(
@@ -276,7 +276,7 @@ def copy_header_file(logos_storage_dir: Path, output_dir: Path) -> Path:
     
     header_dest = output_dir / "libstorage.h"
     shutil.copy2(header_source, header_dest)
-    print(f"✓ Copied libstorage.h to {header_dest}")
+    print(f"[OK] Copied libstorage.h to {header_dest}")
     
     return header_dest
 
@@ -322,6 +322,6 @@ def generate_sha256sums(output_dir: Path) -> Path:
     
     # Write checksums file
     checksums_path.write_text("\n".join(checksums) + "\n")
-    print(f"✓ Generated SHA256SUMS.txt with {len(checksums)} entries")
+    print(f"[OK] Generated SHA256SUMS.txt with {len(checksums)} entries")
     
     return checksums_path
