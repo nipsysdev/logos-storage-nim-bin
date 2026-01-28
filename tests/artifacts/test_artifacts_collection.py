@@ -31,3 +31,33 @@ class TestCollectArtifacts:
             collect_artifacts(sample_artifact_paths, "x86_64", path_exists=mock_path_exists)
 
         assert "libstorage.a not found" in str(exc_info.value)
+
+    @patch('src.artifacts.platform.system', return_value='Linux')
+    def test_collect_artifacts_uses_build_subdirectory_on_linux(self, mock_system, sample_artifact_paths):
+        """Test that collect_artifacts uses build/ subdirectory for libminiupnpc.a on Linux."""
+        def mock_path_exists(path: Path) -> bool:
+            # Only return True for the Linux path (with build/ subdirectory)
+            return "build/libminiupnpc.a" in str(path) or "libminiupnpc.a" not in str(path)
+
+        libraries = collect_artifacts(sample_artifact_paths, "x86_64", path_exists=mock_path_exists)
+
+        assert len(libraries) == 4
+        # Verify the Linux path was used
+        miniupnpc_lib = [lib for lib in libraries if "libminiupnpc.a" in str(lib)]
+        assert len(miniupnpc_lib) == 1
+        assert "build/libminiupnpc.a" in str(miniupnpc_lib[0])
+
+    @patch('src.artifacts.platform.system', return_value='Windows')
+    def test_collect_artifacts_uses_root_directory_on_windows(self, mock_system, sample_artifact_paths):
+        """Test that collect_artifacts uses root directory for libminiupnpc.a on Windows."""
+        def mock_path_exists(path: Path) -> bool:
+            # Only return True for the Windows path (without build/ subdirectory)
+            return "build/libminiupnpc.a" not in str(path)
+
+        libraries = collect_artifacts(sample_artifact_paths, "x86_64", path_exists=mock_path_exists)
+
+        assert len(libraries) == 4
+        # Verify the Windows path was used
+        miniupnpc_lib = [lib for lib in libraries if "libminiupnpc.a" in str(lib)]
+        assert len(miniupnpc_lib) == 1
+        assert "build/libminiupnpc.a" not in str(miniupnpc_lib[0])

@@ -52,7 +52,7 @@ def get_platform_identifier() -> str:
     """
     Get platform identifier for artifact naming.
     
-    This uses a simple format (e.g., linux-amd64, linux-arm64, darwin-amd64, darwin-arm64)
+    This uses a simple format (e.g., linux-amd64, linux-arm64, darwin-amd64, darwin-arm64, windows-amd64)
     which is used for naming artifact directories and release files.
     """
     system = platform.system().lower()
@@ -72,6 +72,13 @@ def get_platform_identifier() -> str:
             return "linux-amd64"
         else:
             return "linux-unknown"
+    elif system == "windows":
+        if machine in ("x86_64", "amd64"):
+            return "windows-amd64"
+        elif machine in ("aarch64", "arm64"):
+            return "windows-arm64"
+        else:
+            return "windows-unknown"
     else:
         return f"{system}-{machine}"
 

@@ -1,6 +1,7 @@
 """Artifact management for build system."""
 
 import os
+import platform
 import shutil
 import subprocess
 import tempfile
@@ -146,10 +147,17 @@ def collect_artifacts(
     libraries = []
     
     # Define all libraries to collect
+    # Note: On Windows, libminiupnpc.a is built in the root of miniupnpc directory,
+    # not in build/ subdirectory (uses Makefile.mingw)
+    if platform.system().lower() == "windows":
+        miniupnpc_path = logos_storage_dir / "vendor" / "nim-nat-traversal" / "vendor" / "miniupnp" / "miniupnpc" / "libminiupnpc.a"
+    else:
+        miniupnpc_path = logos_storage_dir / "vendor" / "nim-nat-traversal" / "vendor" / "miniupnp" / "miniupnpc" / "build" / "libminiupnpc.a"
+    
     artifact_paths = [
         ("libstorage.a", logos_storage_dir / "build" / "libstorage.a"),
         ("libnatpmp.a", logos_storage_dir / "vendor" / "nim-nat-traversal" / "vendor" / "libnatpmp-upstream" / "libnatpmp.a"),
-        ("libminiupnpc.a", logos_storage_dir / "vendor" / "nim-nat-traversal" / "vendor" / "miniupnp" / "miniupnpc" / "build" / "libminiupnpc.a"),
+        ("libminiupnpc.a", miniupnpc_path),
         ("libbacktrace.a", logos_storage_dir / "vendor" / "nim-libbacktrace" / "install" / "usr" / "lib" / "libbacktrace.a"),
     ]
     
@@ -158,7 +166,7 @@ def collect_artifacts(
         if not path_exists(path):
             raise FileNotFoundError(f"{name} not found at {path}")
         libraries.append(path)
-        print(f"✓ Found {name}")
+        print(f"[OK] Found {name}")
     
     return libraries
 
@@ -183,18 +191,27 @@ def copy_libraries(libraries: List[Path], output_dir: Path) -> List[Path]:
         dest_path = output_dir / lib_path.name
         shutil.copy2(lib_path, dest_path)
         copied_libraries.append(dest_path)
-        print(f"✓ Copied {lib_path.name} to {dest_path}")
+        print(f"[OK] Copied {lib_path.name} to {dest_path}")
     
-    print(f"✓ Successfully copied {len(copied_libraries)} libraries")
+    print(f"[OK] Successfully copied {len(copied_libraries)} libraries")
     return copied_libraries
 
 
 def generate_checksum(artifact_path: Path) -> None:
     """Generate SHA256 checksum for an artifact."""
     checksum_path = artifact_path.with_suffix(".a.sha256")
-    result = run_command(["sha256sum", str(artifact_path)])
-    checksum_path.write_text(result.stdout)
-    print(f"✓ Generated checksum: {checksum_path}")
+    
+    # Use certutil on Windows, sha256sum on Unix
+    if platform.system().lower() == "windows":
+        result = run_command(["certutil", "-hashfile", str(artifact_path), "SHA256"])
+        # certutil output format is different
+        checksum_line = result.stdout.strip().split('\n')[1].replace(' ', '')
+        checksum_path.write_text(f"{checksum_line}  {artifact_path.name}")
+    else:
+        result = run_command(["sha256sum", str(artifact_path)])
+        checksum_path.write_text(result.stdout)
+    
+    print(f"[OK] Generated checksum: {checksum_path}")
 
 
 def verify_checksum(artifact_path: Path) -> bool:
@@ -210,13 +227,17 @@ def verify_checksum(artifact_path: Path) -> bool:
     expected_hash = expected_checksum.split()[0]
     
     # Compute actual checksum
-    result = run_command(["sha256sum", str(artifact_path)])
-    actual_checksum = result.stdout.strip()
-    actual_hash = actual_checksum.split()[0]
+    if platform.system().lower() == "windows":
+        result = run_command(["certutil", "-hashfile", str(artifact_path), "SHA256"])
+        actual_hash = result.stdout.strip().split('\n')[1].replace(' ', '')
+    else:
+        result = run_command(["sha256sum", str(artifact_path)])
+        actual_checksum = result.stdout.strip()
+        actual_hash = actual_checksum.split()[0]
     
     # Compare
     if expected_hash == actual_hash:
-        print(f"✓ Checksum verification passed for {artifact_path.name}")
+        print(f"[OK] Checksum verification passed for {artifact_path.name}")
         return True
     else:
         raise ValueError(
@@ -248,7 +269,7 @@ def copy_header_file(logos_storage_dir: Path, output_dir: Path) -> Path:
     
     header_dest = output_dir / "libstorage.h"
     shutil.copy2(header_source, header_dest)
-    print(f"✓ Copied libstorage.h to {header_dest}")
+    print(f"[OK] Copied libstorage.h to {header_dest}")
     
     return header_dest
 
@@ -276,17 +297,24 @@ def generate_sha256sums(output_dir: Path) -> Path:
     # Generate checksums without changing directory
     checksums = []
     for file_path in sorted(files_to_checksum):
-        result = run_command(["sha256sum", str(file_path)])
-        # Extract just the filename from the output
-        checksum_line = result.stdout.strip()
-        # Replace full path with just filename
-        checksum_parts = checksum_line.split()
-        if len(checksum_parts) >= 2:
-            checksum_parts[1] = file_path.name
-            checksums.append("  ".join(checksum_parts))
+        # Use certutil on Windows, sha256sum on Unix
+        if platform.system().lower() == "windows":
+            result = run_command(["certutil", "-hashfile", str(file_path), "SHA256"])
+            # certutil output format is different
+            checksum_line = result.stdout.strip().split('\n')[1].replace(' ', '')
+            checksums.append(f"{checksum_line}  {file_path.name}")
+        else:
+            result = run_command(["sha256sum", str(file_path)])
+            # Extract just the filename from the output
+            checksum_line = result.stdout.strip()
+            # Replace full path with just filename
+            checksum_parts = checksum_line.split()
+            if len(checksum_parts) >= 2:
+                checksum_parts[1] = file_path.name
+                checksums.append("  ".join(checksum_parts))
     
     # Write checksums file
     checksums_path.write_text("\n".join(checksums) + "\n")
-    print(f"✓ Generated SHA256SUMS.txt with {len(checksums)} entries")
+    print(f"[OK] Generated SHA256SUMS.txt with {len(checksums)} entries")
     
     return checksums_path

@@ -146,6 +146,9 @@ jobs:
           - os: macos
             cpu: arm64
             builder: macos-latest
+          - os: windows
+            cpu: amd64
+            builder: windows-latest
 
     name: ${{ matrix.os }}-${{ matrix.cpu }}
     runs-on: ${{ matrix.builder }}
@@ -161,21 +164,46 @@ jobs:
           enable: true
           cache: true
 
-      - name: Install build dependencies
+      - name: Setup MSYS2 (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          path-type: inherit
+          install: >-
+            base-devel
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-make
+            git
+
+      - name: Install build dependencies (Linux)
+        if: runner.os == 'Linux'
         run: |
-          if [ "$RUNNER_OS" == "Linux" ]; then
-            sudo apt-get update
-            sudo apt-get install -y git make gcc binutils cmake
-          fi
+          sudo apt-get update
+          sudo apt-get install -y git make gcc binutils cmake
         shell: bash
 
-      - name: Build
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
         run: |
           make clean
           make
         env:
           BRANCH: ${{ env.pinned_branch }}
           COMMIT: ${{ env.pinned_commit }}
+
+      - name: Build (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          make clean
+          make
+        env:
+          BRANCH: ${{ env.pinned_branch }}
+          COMMIT: ${{ env.pinned_commit }}
+        shell: bash
 
       - name: Upload artifacts
         if: env.ACT != 'true'
@@ -266,6 +294,7 @@ jobs:
             - Linux x86_64: logos-storage-nim-${{ needs.check-updates.outputs.branch_name }}-${{ needs.check-updates.outputs.commit_short }}-linux-amd64.tar.gz
             - Linux AArch64: logos-storage-nim-${{ needs.check-updates.outputs.branch_name }}-${{ needs.check-updates.outputs.commit_short }}-linux-arm64.tar.gz
             - macOS Apple Silicon: logos-storage-nim-${{ needs.check-updates.outputs.branch_name }}-${{ needs.check-updates.outputs.commit_short }}-darwin-arm64.tar.gz
+            - Windows x86_64: logos-storage-nim-${{ needs.check-updates.outputs.branch_name }}-${{ needs.check-updates.outputs.commit_short }}-windows-amd64.tar.gz
 
             Each archive contains:
             - libstorage.a: Main storage library
