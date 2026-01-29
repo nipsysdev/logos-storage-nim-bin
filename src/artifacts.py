@@ -313,8 +313,8 @@ def generate_sha256sums(output_dir: Path) -> Path:
                 checksum_parts[1] = file_path.name
                 checksums.append("  ".join(checksum_parts))
     
-    # Write checksums file
-    checksums_path.write_text("\n".join(checksums) + "\n")
+    # Write checksums file with Unix line endings (LF only) for cross-platform compatibility
+    checksums_path.write_text("\n".join(checksums) + "\n", newline="\n")
     print(f"[OK] Generated SHA256SUMS.txt with {len(checksums)} entries")
     
     return checksums_path
