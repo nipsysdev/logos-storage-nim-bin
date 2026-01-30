@@ -56,6 +56,23 @@ def validate_commit_in_branch(repo_dir: Path, commit: str, branch: str) -> bool:
     return branch in result.stdout
 
 
+def is_tag(ref: str) -> bool:
+    """Check if a ref is a tag.
+    
+    Args:
+        ref: Reference to check (branch name or tag)
+        
+    Returns:
+        True if ref is a tag, False otherwise
+    """
+    # Check if the ref exists as a tag in the remote repository
+    result = run_command(
+        ["git", "ls-remote", "--tags", "https://github.com/logos-storage/logos-storage-nim.git", f"refs/tags/{ref}"],
+        check=False
+    )
+    return result.returncode == 0
+
+
 def clone_repository(target_dir: Path, branch: str, commit: Optional[str] = None) -> None:
     """Clone the logos-storage-nim repository.
     
@@ -64,7 +81,20 @@ def clone_repository(target_dir: Path, branch: str, commit: Optional[str] = None
         branch: Branch to clone (used if commit is not specified)
         commit: Optional commit hash to checkout (mutually exclusive with branch)
     """
-    if commit:
+    # Check if branch is actually a tag
+    if is_tag(branch):
+        print(f"Cloning logos-storage-nim repository (tag: {branch})...")
+        # Clone without checkout
+        run_command([
+            "git", "clone", "--no-checkout",
+            "https://github.com/logos-storage/logos-storage-nim.git",
+            str(target_dir)
+        ])
+        # Fetch all objects
+        run_command(["git", "-C", str(target_dir), "fetch", "--all", "--tags"])
+        # Checkout the tag
+        run_command(["git", "-C", str(target_dir), "checkout", f"refs/tags/{branch}"])
+    elif commit:
         print(f"Cloning logos-storage-nim repository (commit: {commit})...")
         # Clone without checkout
         run_command([
@@ -93,7 +123,14 @@ def update_repository(repo_dir: Path, branch: str, commit: Optional[str] = None)
         branch: Branch to update (used if commit is not specified)
         commit: Optional commit hash to checkout (mutually exclusive with branch)
     """
-    if commit:
+    # Check if branch is actually a tag
+    if is_tag(branch):
+        print(f"Updating logos-storage-nim repository (tag: {branch})...")
+        # Fetch all objects
+        run_command(["git", "-C", str(repo_dir), "fetch", "--all", "--tags"])
+        # Checkout the tag
+        run_command(["git", "-C", str(repo_dir), "checkout", f"refs/tags/{branch}"])
+    elif commit:
         print(f"Updating logos-storage-nim repository (commit: {commit})...")
         # Fetch all objects
         run_command(["git", "-C", str(repo_dir), "fetch", "--all", "--tags"])
@@ -147,8 +184,8 @@ def ensure_logos_storage_repo(branch: str, commit: Optional[str] = None) -> Tupl
     """Ensure the logos-storage-nim repository exists and is up to date.
     
     Args:
-        branch: Branch to use
-        commit: Optional commit hash to checkout
+        branch: Branch or tag to use
+        commit: Optional commit hash to checkout (mutually exclusive with tags)
         
     Returns:
         Tuple of (repository path, commit info)
@@ -164,7 +201,8 @@ def ensure_logos_storage_repo(branch: str, commit: Optional[str] = None) -> Tupl
         update_repository(logos_storage_dir, branch, commit)
     
     # If both branch and commit are specified, validate commit is in branch
-    if branch and commit:
+    # Skip this validation if branch is a tag
+    if branch and commit and not is_tag(branch):
         if not validate_commit_in_branch(logos_storage_dir, commit, branch):
             raise ValueError(
                 f"Commit '{commit}' does not exist in branch '{branch}'. "
@@ -173,9 +211,12 @@ def ensure_logos_storage_repo(branch: str, commit: Optional[str] = None) -> Tupl
     
     commit_info = get_commit_info(logos_storage_dir)
     
+    # If branch is a tag, use the tag name as the branch
     # If both branch and commit are specified, override the branch name
-    # This ensures artifact names use the actual branch name instead of "HEAD"
-    if branch and commit:
+    # This ensures artifact names use the actual branch/tag name instead of "HEAD"
+    if is_tag(branch):
+        commit_info.branch = branch
+    elif branch and commit:
         commit_info.branch = branch
     
     return logos_storage_dir, commit_info

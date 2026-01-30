@@ -1,4 +1,4 @@
-name: Release
+name: Nightly Release
 
 on:
   schedule:
@@ -64,6 +64,7 @@ jobs:
       commit_short: ${{ steps.check.outputs.commit_short }}
       commit_date: ${{ steps.check.outputs.commit_date }}
       branch_name: ${{ steps.check.outputs.branch_name }}
+      previous_commit: ${{ steps.check.outputs.previous_commit }}
     steps:
       - name: Get latest release
         id: latest_release
@@ -105,6 +106,9 @@ jobs:
           # Get latest release description from the action output
           LATEST_RELEASE="${{ steps.latest_release.outputs.description }}"
 
+          # Extract previous commit hash from release body
+          PREVIOUS_COMMIT=$(echo "$LATEST_RELEASE" | grep -oP 'Commit: \K[a-f0-9]{40}' || echo "")
+
           # If no release exists, we should build
           if [ -z "$LATEST_RELEASE" ]; then
             echo "should_build=true" >> $GITHUB_OUTPUT
@@ -112,6 +116,7 @@ jobs:
             echo "commit_short=$LATEST_SHORT" >> $GITHUB_OUTPUT
             echo "commit_date=$COMMIT_DATE" >> $GITHUB_OUTPUT
             echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+            echo "previous_commit=" >> $GITHUB_OUTPUT
             echo "No previous release found, building for commit: $LATEST_SHORT"
             exit 0
           fi
@@ -126,6 +131,7 @@ jobs:
             echo "commit_short=$LATEST_SHORT" >> $GITHUB_OUTPUT
             echo "commit_date=$COMMIT_DATE" >> $GITHUB_OUTPUT
             echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+            echo "previous_commit=$PREVIOUS_COMMIT" >> $GITHUB_OUTPUT
             echo "New commit detected: $LATEST_SHORT"
           fi
 
@@ -266,9 +272,56 @@ jobs:
             echo "No dist directory found"
           fi
 
+  # Fetch commit changes
+  fetch-commits:
+    runs-on: ubuntu-latest
+    needs: [test, check-updates]
+    if: needs.check-updates.outputs.should_build == 'true'
+    outputs:
+      commit_changes: ${{ steps.fetch.outputs.changes }}
+    steps:
+      - name: Fetch commit changes
+        id: fetch
+        run: |
+          PREVIOUS_COMMIT="${{ needs.check-updates.outputs.previous_commit }}"
+          CURRENT_COMMIT="${{ needs.check-updates.outputs.commit_hash }}"
+          BRANCH_NAME="${{ needs.check-updates.outputs.branch_name }}"
+
+          if [ -z "$PREVIOUS_COMMIT" ]; then
+            echo "No previous commit found, this is the first release"
+            echo "changes=First release - no previous commit to compare" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Fetching commits between $PREVIOUS_COMMIT and $CURRENT_COMMIT"
+
+          # Clone the upstream repository
+          git clone --depth 100 https://github.com/logos-storage/logos-storage-nim.git /tmp/logos-storage-nim
+          cd /tmp/logos-storage-nim
+
+          # Fetch the specific commits
+          git fetch origin $PREVIOUS_COMMIT
+          git fetch origin $CURRENT_COMMIT
+
+          # Get commit list
+          COMMITS=$(git log --pretty=format:"%h - %s (%an, %ar)" $PREVIOUS_COMMIT..$CURRENT_COMMIT)
+
+          if [ -z "$COMMITS" ]; then
+            echo "No commits found between releases"
+            echo "changes=No commits found between releases" >> $GITHUB_OUTPUT
+          else
+            # Count commits
+            COMMIT_COUNT=$(echo "$COMMITS" | wc -l)
+            echo "Found $COMMIT_COUNT commits"
+            
+            # Format for YAML (escape newlines)
+            CHANGES_ESCAPED=$(echo "$COMMITS" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+            echo "changes=$CHANGES_ESCAPED" >> $GITHUB_OUTPUT
+          fi
+
   # Create release
   release:
-    needs: [check-updates, build]
+    needs: [check-updates, build, fetch-commits]
     if: needs.check-updates.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -309,10 +362,10 @@ jobs:
           tag_name: ${{ needs.check-updates.outputs.branch_name }}-${{ needs.check-updates.outputs.commit_short }}
           name: ${{ needs.check-updates.outputs.branch_name }}-${{ needs.check-updates.outputs.commit_short }}
           body: |
-            Pre-built libstorage binaries
+            Nightly pre-release of logos-storage-nim static libraries
 
-            This release provides pre-compiled static libraries,
-            built automatically from the logos-storage-nim repository.
+            ⚠️ This is a pre-release build from the latest upstream commits.
+            Use upstream tagged releases for production use.
 
             Commit: ${{ needs.check-updates.outputs.commit_hash }}
             Branch: ${{ needs.check-updates.outputs.branch_name }}
@@ -333,10 +386,15 @@ jobs:
             - SHA256SUMS.txt: Checksums for all files
 
             Archive checksums: SHA256SUMS.txt
+
+            ---
+            ### Changes since last nightly release
+
+            ${{ needs.fetch-commits.outputs.commit_changes }}
           files: |
             /tmp/release/*.tar.gz
             /tmp/release/SHA256SUMS.txt
           draft: false
-          prerelease: false
+          prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}

@@ -30,14 +30,30 @@ def main() -> None:
     platform = get_platform_identifier()
     branch = os.environ.get("BRANCH")
     commit = os.environ.get("COMMIT")
+    tag = os.environ.get("TAG")
+    
+    # Validate mutually exclusive options
+    if tag and (branch or commit):
+        print("Error: TAG cannot be used with BRANCH or COMMIT", file=sys.stderr)
+        sys.exit(1)
+    
+    if branch and commit:
+        print("Error: BRANCH and COMMIT are mutually exclusive", file=sys.stderr)
+        sys.exit(1)
     
     # Set default branch if not specified
-    if not branch:
+    if not tag and not branch:
         branch = "master"
     
-    print("Building logos-storage-nim")
+    if tag:
+        print(f"Building logos-storage-nim from tag: {tag}")
+    else:
+        print("Building logos-storage-nim")
+    
     print(f"Platform: {platform}")
-    if commit:
+    if tag:
+        print(f"Tag: {tag}")
+    elif commit:
         print(f"Branch: {branch}")
         print(f"Commit: {commit}")
     else:
@@ -48,7 +64,10 @@ def main() -> None:
     configure_reproducible_environment()
     
     # Ensure repository
-    logos_storage_dir, commit_info = ensure_logos_storage_repo(branch, commit)
+    if tag:
+        logos_storage_dir, commit_info = ensure_logos_storage_repo(tag, None)
+    else:
+        logos_storage_dir, commit_info = ensure_logos_storage_repo(branch, commit)
 
     print(f"Commit: {commit_info.commit} ({commit_info.commit_short})")
     print(f"Branch: {commit_info.branch}")
@@ -63,7 +82,11 @@ def main() -> None:
     libraries = collect_artifacts(logos_storage_dir, host_triple)
     
     # Create output directory
-    artifact_name = f"{commit_info.branch}-{commit_info.commit_short}-{platform}"
+    if tag:
+        artifact_name = f"{tag}-{platform}"
+    else:
+        artifact_name = f"{commit_info.branch}-{commit_info.commit_short}-{platform}"
+    
     dist_dir = Path("dist") / artifact_name
     dist_dir.mkdir(parents=True, exist_ok=True)
     
@@ -80,7 +103,10 @@ def main() -> None:
     print("Build completed successfully!")
     print("=" * 42)
     print(f"Output: {dist_dir}")
-    print(f"Version: {commit_info.branch}-{commit_info.commit_short}")
+    if tag:
+        print(f"Version: {tag}")
+    else:
+        print(f"Version: {commit_info.branch}-{commit_info.commit_short}")
     print("=" * 42)
 
 

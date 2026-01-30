@@ -1,0 +1,383 @@
+name: Stable Release
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # Daily at 00:00 UTC
+  workflow_dispatch:
+
+env:
+  cache_nonce: 0
+
+jobs:
+  # Run tests
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install mise
+        uses: jdx/mise-action@v3
+        with:
+          enable: true
+          cache: true
+
+      - name: Create virtual environment
+        run: |
+          python -m venv venv
+
+      - name: Install test dependencies
+        run: |
+          source venv/bin/activate
+          pip install -r requirements-test.txt
+
+      - name: Run tests with coverage
+        run: |
+          source venv/bin/activate
+          pytest tests/ -v --cov=src --cov-report=xml --cov-report=term
+
+      - name: Upload coverage reports
+        if: github.event_name != 'workflow_dispatch'
+        uses: codecov/codecov-action@v5
+        continue-on-error: true
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  # Check for new upstream tags
+  check-updates:
+    runs-on: ubuntu-latest
+    needs: test
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+      tag_name: ${{ steps.check.outputs.tag_name }}
+      tag_date: ${{ steps.check.outputs.tag_date }}
+      tag_commit: ${{ steps.check.outputs.tag_commit }}
+    steps:
+      - name: Get latest stable release
+        id: latest_release
+        uses: pozetroninc/github-action-get-latest-release@master
+        continue-on-error: true
+        with:
+          repository: ${{ github.repository }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for new upstream tags
+        id: check
+        run: |
+          # Get latest tag from upstream
+          git ls-remote --tags https://github.com/logos-storage/logos-storage-nim.git | grep -v '{}' | tail -n1 > latest_tag.txt
+          LATEST_TAG=$(awk '{print $2}' latest_tag.txt | sed 's/refs\/tags\///')
+          LATEST_COMMIT=$(awk '{print $1}' latest_tag.txt)
+
+          # Get tag date using GitHub API
+          API_URL="https://api.github.com/repos/logos-storage/logos-storage-nim/git/refs/tags/$LATEST_TAG"
+          TAG_DATE=$(curl -s "$API_URL" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data['object']['type'] == 'tag' and data['object']['date'] or data['object']['url'])" 2>/dev/null || echo "Unknown")
+
+          # Get our latest stable release tag
+          LATEST_RELEASE="${{ steps.latest_release.outputs.description }}"
+
+          # If no release exists, we should build
+          if [ -z "$LATEST_RELEASE" ]; then
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "tag_name=$LATEST_TAG" >> $GITHUB_OUTPUT
+            echo "tag_date=$TAG_DATE" >> $GITHUB_OUTPUT
+            echo "tag_commit=$LATEST_COMMIT" >> $GITHUB_OUTPUT
+            echo "No previous release found, building for tag: $LATEST_TAG"
+            exit 0
+          fi
+
+          # Check if the release body contains the tag name
+          if echo "$LATEST_RELEASE" | grep -q "$LATEST_TAG"; then
+            echo "should_build=false" >> $GITHUB_OUTPUT
+            echo "Latest tag $LATEST_TAG is already released"
+          else
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "tag_name=$LATEST_TAG" >> $GITHUB_OUTPUT
+            echo "tag_date=$TAG_DATE" >> $GITHUB_OUTPUT
+            echo "tag_commit=$LATEST_COMMIT" >> $GITHUB_OUTPUT
+            echo "New tag detected: $LATEST_TAG"
+          fi
+
+  # Matrix build
+  build:
+    needs: [test, check-updates]
+    if: needs.check-updates.outputs.should_build == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            cpu: amd64
+            builder: ubuntu-latest
+          - os: linux
+            cpu: arm64
+            builder: ubuntu-22.04-arm
+          - os: macos
+            cpu: arm64
+            builder: macos-latest
+          - os: windows
+            cpu: amd64
+            builder: windows-latest
+
+    name: ${{ matrix.os }}-${{ matrix.cpu }}
+    runs-on: ${{ matrix.builder }}
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install mise
+        uses: jdx/mise-action@v3
+        with:
+          enable: true
+          cache: true
+
+      - name: Setup MSYS2 (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          path-type: inherit
+          install: >-
+            base-devel
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-make
+            git
+
+      - name: Install build dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git make gcc binutils cmake
+        shell: bash
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          make clean
+          make
+        env:
+          TAG: ${{ needs.check-updates.outputs.tag_name }}
+
+      - name: Build (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          make clean
+          make
+        env:
+          TAG: ${{ needs.check-updates.outputs.tag_name }}
+        shell: bash
+
+      - name: Upload artifacts
+        if: env.ACT != 'true'
+        uses: actions/upload-artifact@v6
+        continue-on-error: true
+        with:
+          name: libstorage-${{ matrix.os }}-${{ matrix.cpu }}
+          path: dist/*/
+          retention-days: 90
+
+      - name: Verify artifacts (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          echo "Verifying artifacts..."
+          if [ -d "dist" ]; then
+            find dist -name "*.a" -type f | while read lib; do
+              echo "Found: $lib"
+              ls -lh "$lib"
+            done
+            find dist -name "SHA256SUMS.txt" -type f | while read checksum_file; do
+              echo "Verifying checksums in: $checksum_file"
+              checksum_dir=$(dirname "$checksum_file")
+              (cd "$checksum_dir" && sha256sum -c "SHA256SUMS.txt")
+            done
+            echo ""
+            echo "Artifacts are available in: $(pwd)/dist/"
+          else
+            echo "No dist directory found"
+          fi
+
+      - name: Verify artifacts (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          echo "Verifying artifacts..."
+          if [ -d "dist" ]; then
+            find dist -name "*.a" -type f | while read lib; do
+              echo "Found: $lib"
+              ls -lh "$lib"
+            done
+            find dist -name "SHA256SUMS.txt" -type f | while read checksum_file; do
+              echo "Verifying checksums in: $checksum_file"
+              checksum_dir=$(dirname "$checksum_file")
+              (cd "$checksum_dir" && sha256sum -c "SHA256SUMS.txt")
+            done
+            echo ""
+            echo "Artifacts are available in: $(pwd)/dist/"
+          else
+            echo "No dist directory found"
+          fi
+
+  # Fetch upstream release notes
+  fetch-notes:
+    runs-on: ubuntu-latest
+    needs: [test, check-updates]
+    if: needs.check-updates.outputs.should_build == 'true'
+    outputs:
+      release_notes: ${{ steps.fetch.outputs.notes }}
+    steps:
+      - name: Fetch upstream release notes
+        id: fetch
+        run: |
+          TAG_NAME="${{ needs.check-updates.outputs.tag_name }}"
+
+          # Try GitHub API first
+          API_URL="https://api.github.com/repos/logos-storage/logos-storage-nim/releases/tags/$TAG_NAME"
+          NOTES=$(curl -s "$API_URL" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('body', ''))" 2>/dev/null)
+
+          # Fallback to git tag annotation
+          if [ -z "$NOTES" ] || [ "$NOTES" == "null" ]; then
+            NOTES=$(git ls-remote --tags https://github.com/logos-storage/logos-storage-nim.git "refs/tags/$TAG_NAME^{}" | awk '{print $1}' | xargs -I{} sh -c 'git fetch https://github.com/logos-storage/logos-storage-nim.git {} 2>/dev/null && git show -s --format=%B {}' 2>/dev/null || echo "")
+          fi
+
+          # Escape for YAML
+          NOTES_ESCAPED=$(echo "$NOTES" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+          echo "notes=$NOTES_ESCAPED" >> $GITHUB_OUTPUT
+
+  # Create release
+  release:
+    needs: [check-updates, build, fetch-notes]
+    if: needs.check-updates.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        if: env.ACT != 'true'
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          pattern: libstorage-*
+          merge-multiple: true
+          path: /tmp/release
+
+      - name: Compress and checksum
+        if: env.ACT != 'true'
+        run: |
+          cd /tmp/release
+
+          # Find all directories and create archives
+          for dir in */; do
+            dir_name=$(basename "$dir")
+
+            # Directory name is already in the correct format: {tag}-{platform}
+            # Use it directly to create the archive name
+            archive="logos-storage-nim-${dir_name}.tar.gz"
+            cd "$dir"
+            tar cfz "/tmp/release/${archive}" *.a libstorage.h SHA256SUMS.txt
+            cd /tmp/release
+          done
+
+          # Create SHA256SUMS.txt for all archives
+          sha256sum *.tar.gz > SHA256SUMS.txt
+
+      - name: Create release
+        if: env.ACT != 'true'
+        uses: softprops/action-gh-release@v2
+        continue-on-error: true
+        with:
+          tag_name: ${{ needs.check-updates.outputs.tag_name }}
+          name: ${{ needs.check-updates.outputs.tag_name }}
+          body: |
+            Pre-built static libraries for logos-storage-nim ${{ needs.check-updates.outputs.tag_name }}
+
+            Tag: ${{ needs.check-updates.outputs.tag_name }}
+            Commit: ${{ needs.check-updates.outputs.tag_commit }}
+            Date: ${{ needs.check-updates.outputs.tag_date }}
+
+            Artifacts:
+            - Linux x86_64: logos-storage-nim-${{ needs.check-updates.outputs.tag_name }}-linux-amd64.tar.gz
+            - Linux AArch64: logos-storage-nim-${{ needs.check-updates.outputs.tag_name }}-linux-arm64.tar.gz
+            - macOS Apple Silicon: logos-storage-nim-${{ needs.check-updates.outputs.tag_name }}-darwin-arm64.tar.gz
+            - Windows x86_64: logos-storage-nim-${{ needs.check-updates.outputs.tag_name }}-windows-amd64.tar.gz
+
+            Each archive contains:
+            - libstorage.a: Main storage library
+            - libnatpmp.a: NAT-PMP library
+            - libminiupnpc.a: MiniUPnP library
+            - libbacktrace.a: Backtrace library
+            - libstorage.h: C header file
+            - SHA256SUMS.txt: Checksums for all files
+
+            Archive checksums: SHA256SUMS.txt
+
+            ---
+            > Upstream Release Notes:
+            >
+            > ${{ needs.fetch-notes.outputs.release_notes }}
+          files: |
+            /tmp/release/*.tar.gz
+            /tmp/release/SHA256SUMS.txt
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+  # Refresh stable release if older than 89 days
+  refresh-stable:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - name: Check if stable release needs refresh
+        id: check_refresh
+        run: |
+          # Get latest stable release
+          LATEST_STABLE=$(gh release list --limit 1 --exclude-pre-releases --json tagName,publishedAt --jq '.[0]')
+          TAG_NAME=$(echo "$LATEST_STABLE" | jq -r '.tagName')
+          PUBLISHED_AT=$(echo "$LATEST_STABLE" | jq -r '.publishedAt')
+
+          # Calculate age in days
+          PUBLISHED_TIMESTAMP=$(date -d "$PUBLISHED_AT" +%s)
+          CURRENT_TIMESTAMP=$(date +%s)
+          AGE_DAYS=$(( (CURRENT_TIMESTAMP - PUBLISHED_TIMESTAMP) / 86400 ))
+
+          if [ $AGE_DAYS -ge 89 ]; then
+            echo "should_refresh=true" >> $GITHUB_OUTPUT
+            echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+            echo "age_days=$AGE_DAYS" >> $GITHUB_OUTPUT
+            echo "Stable release is $AGE_DAYS days old, needs refresh"
+          else
+            echo "should_refresh=false" >> $GITHUB_OUTPUT
+            echo "Stable release is $AGE_DAYS days old, no refresh needed"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Refresh stable release
+        if: steps.check_refresh.outputs.should_refresh == 'true'
+        run: |
+          TAG_NAME="${{ steps.check_refresh.outputs.tag_name }}"
+
+          echo "Deleting release and tag: $TAG_NAME"
+
+          # Delete release
+          gh release delete "$TAG_NAME" --yes
+
+          # Delete tag
+          git push origin ":refs/tags/$TAG_NAME"
+
+          echo "Triggering rebuild for tag: $TAG_NAME"
+
+          # Trigger rebuild
+          gh workflow run stable-release.yml
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}

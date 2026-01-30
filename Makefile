@@ -1,4 +1,4 @@
-.PHONY: help build clean clean-all ci-build ci-release
+.PHONY: help build clean clean-all ci-build ci-nightly ci-stable
 
 build:
 	python build.py
@@ -9,7 +9,8 @@ help:
 	@echo "  make clean      - Clean build artifacts (Nim cache, build directories, .o files)"
 	@echo "  make clean-all  - Clean everything including dist/ and logos-storage-nim/"
 	@echo "  make ci-build   - Test build.yml workflow locally (requires act)"
-	@echo "  make ci-release - Test release.yml workflow locally (requires act)"
+	@echo "  make ci-nightly - Test nightly-release.yml workflow locally (requires act)"
+	@echo "  make ci-stable  - Test stable-release.yml workflow locally (requires act)"
 	@echo "  make help       - Show this help message"
 
 clean:
@@ -21,5 +22,8 @@ clean-all:
 ci-build:
 	act -W .github/workflows/build.yml push
 
-ci-release:
-	act -W .github/workflows/release.yml schedule
+ci-nightly:
+	act -W .github/workflows/nightly-release.yml schedule
+
+ci-stable:
+	act -W .github/workflows/stable-release.yml schedule

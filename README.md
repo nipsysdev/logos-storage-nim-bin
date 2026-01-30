@@ -8,11 +8,26 @@ Pre-built static libraries for [logos-storage-nim](https://github.com/logos-stor
 
 While the upstream [logos-storage-nim](https://github.com/logos-storage/logos-storage-nim) provides stable dynamic libraries (`.so`, `.dylib`, `.dll`), this repository offers **static libraries** (`.a`) with key advantages:
 
-- **Nightly Builds**: Daily releases from the latest upstream commits
 - **Simplified Integration**: No need to manage dynamic library paths or runtime loading—just link against the `.a` files
 - **No Runtime Dependencies**: All dependencies (libnatpmp, libminiupnpc, libbacktrace) are bundled
 - **Maximum Compatibility**: Built with architecture-specific flags for broad CPU support
 - **Complete Bundle**: Includes all 4 required static libraries in one package
+
+## Release Types
+
+This repository provides two types of releases:
+
+### Stable Releases
+
+- **Trigger**: Builds from upstream tagged releases (e.g., v0.2.5)
+- **Purpose**: Production-ready builds
+- **Tag Format**: Same as upstream tags
+
+### Nightly Pre-releases
+
+- **Trigger**: Daily builds from upstream master branch commits
+- **Purpose**: Latest development builds
+- **Tag Format**: `master-{commit_short}`
 
 ## Supported Platforms
 
@@ -31,16 +46,22 @@ While the upstream [logos-storage-nim](https://github.com/logos-storage/logos-st
 
 ## Quick Start
 
-Download the latest release from [GitHub Releases](https://github.com/nipsysdev/logos-storage-nim-bin/releases/latest).
+Download the latest stable release from [GitHub Releases](https://github.com/nipsysdev/logos-storage-nim-bin/releases/latest).
 
 Each release contains:
 
-- `logos-storage-nim-<branch>-<commit>-<platform>.tar.gz` - Platform-specific archive
+- `logos-storage-nim-<tag>-<platform>.tar.gz` - Platform-specific archive (stable releases)
+- `logos-storage-nim-<branch>-<commit>-<platform>.tar.gz` - Platform-specific archive (nightly releases)
 - `SHA256SUMS.txt` - Checksums for all archives
 
 Extract and verify:
 
 ```bash
+# Stable release example
+tar -xzf logos-storage-nim-v0.2.5-linux-amd64.tar.gz
+sha256sum -c SHA256SUMS.txt
+
+# Nightly release example
 tar -xzf logos-storage-nim-master-60861d6a-linux-amd64.tar.gz
 sha256sum -c SHA256SUMS.txt
 ```
@@ -77,7 +98,7 @@ pacman -S --needed base-devel mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-
 git clone https://github.com/nipsysdev/logos-storage-nim-bin
 cd logos-storage-nim-bin
 
-# Build for host architecture
+# Build for host architecture (default: master branch)
 make build
 
 # Build from specific branch
@@ -85,9 +106,12 @@ BRANCH="release/0.2.5" make build
 
 # Build from specific commit
 COMMIT="abc123def456789abc123def456789abc123def" make build
+
+# Build from specific tag
+TAG="v0.2.5" make build
 ```
 
-**Note**: `BRANCH` and `COMMIT` are mutually exclusive. Specify one or the other, not both.
+**Note**: `BRANCH`, `COMMIT`, and `TAG` are mutually exclusive. Specify only one.
 
 ### Make Targets
 
@@ -96,7 +120,8 @@ make build        # Build for host architecture
 make clean        # Clean build artifacts
 make clean-all    # Clean everything including dist/ and logos-storage-nim/
 make ci-build     # Test build.yml workflow locally (requires act)
-make ci-release   # Test release.yml workflow locally (requires act)
+make ci-nightly   # Test nightly-release.yml workflow locally (requires act)
+make ci-stable    # Test stable-release.yml workflow locally (requires act)
 make help         # Show all targets
 ```
 
@@ -116,13 +141,22 @@ pytest --cov=src --cov-report=html
 ## CI/CD
 
 - **Build**: Runs on push to `main` and on any PRs
-- **Release**: Runs on push to `main`. Also scheduled at 00:00 UTC. Creates releases when new logos-storage-nim commits are detected
+- **Nightly Release**: Runs daily at 00:00 UTC and on push to main. Creates pre-releases for new upstream commits
+- **Stable Release**: Runs daily at 00:00 UTC. Creates releases for new upstream tags
 
 ## Versioning
+
+### Nightly Releases
 
 Format: `<branch>-<commit-hash>`
 
 Example: `master-60861d6a` means built from logos-storage-nim branch `master` at commit `60861d6a`.
+
+### Stable Releases
+
+Format: `<tag>`
+
+Example: `v0.2.5` means built from logos-storage-nim tag `v0.2.5`.
 
 ## License
 
