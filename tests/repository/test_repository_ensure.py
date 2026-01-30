@@ -256,14 +256,14 @@ class TestEnsureLogosStorageRepo:
 
         # Custom responses for tag-based clone
         custom_responses = [
-            subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # is_tag() in clone_repository - is a tag
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123def456789abc123def456789abc123def\trefs/tags/v0.2.5\n", stderr=""),  # is_tag() in clone_repository - is a tag
             subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # clone --no-checkout
             subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # fetch --all --tags
             subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # checkout tag
             subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123def456789abc123def456789abc123def\n", stderr=""),  # rev-parse HEAD
             subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123d\n", stderr=""),  # rev-parse --short HEAD
             subprocess.CompletedProcess(args=[], returncode=0, stdout="HEAD\n", stderr=""),  # rev-parse --abbrev-ref HEAD
-            subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # is_tag() at end - is a tag
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123def456789abc123def456789abc123def\trefs/tags/v0.2.5\n", stderr=""),  # is_tag() at end - is a tag
         ]
 
         with patch("pathlib.Path.exists", return_value=False):
@@ -283,13 +283,13 @@ class TestEnsureLogosStorageRepo:
 
         # Custom responses for tag-based update
         custom_responses = [
-            subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # is_tag() in update_repository - is a tag
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123def456789abc123def456789abc123def\trefs/tags/v0.2.5\n", stderr=""),  # is_tag() in update_repository - is a tag
             subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # fetch --all --tags
             subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # checkout tag
             subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123def456789abc123def456789abc123def\n", stderr=""),  # rev-parse HEAD
             subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123d\n", stderr=""),  # rev-parse --short HEAD
             subprocess.CompletedProcess(args=[], returncode=0, stdout="HEAD\n", stderr=""),  # rev-parse --abbrev-ref HEAD
-            subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),  # is_tag() at end - is a tag
+            subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123def456789abc123def456789abc123def\trefs/tags/v0.2.5\n", stderr=""),  # is_tag() at end - is a tag
         ]
 
         with patch("pathlib.Path.exists", return_value=True):

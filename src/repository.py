@@ -70,7 +70,9 @@ def is_tag(ref: str) -> bool:
         ["git", "ls-remote", "--tags", "https://github.com/logos-storage/logos-storage-nim.git", f"refs/tags/{ref}"],
         check=False
     )
-    return result.returncode == 0
+    # git ls-remote returns exit code 0 even when no tags match
+    # We need to check if stdout is non-empty to determine if the tag exists
+    return result.returncode == 0 and result.stdout.strip() != ""
 
 
 def clone_repository(target_dir: Path, branch: str, commit: Optional[str] = None) -> None:
