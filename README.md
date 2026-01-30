@@ -4,6 +4,16 @@
 
 Pre-built static libraries for [logos-storage-nim](https://github.com/logos-storage/logos-storage-nim).
 
+## Why Use logos-storage-nim-bin?
+
+While the upstream [logos-storage-nim](https://github.com/logos-storage/logos-storage-nim) provides stable dynamic libraries (`.so`, `.dylib`, `.dll`), this repository offers **static libraries** (`.a`) with key advantages:
+
+- **Nightly Builds**: Daily releases from the latest upstream commits
+- **Simplified Integration**: No need to manage dynamic library paths or runtime loading—just link against the `.a` files
+- **No Runtime Dependencies**: All dependencies (libnatpmp, libminiupnpc, libbacktrace) are bundled
+- **Maximum Compatibility**: Built with architecture-specific flags for broad CPU support
+- **Complete Bundle**: Includes all 4 required static libraries in one package
+
 ## Supported Platforms
 
 ### Linux
