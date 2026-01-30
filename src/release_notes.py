@@ -6,6 +6,8 @@ including extracting PR numbers and creating formatted links.
 
 import re
 import subprocess
+import urllib.request
+import json
 from pathlib import Path
 from typing import List, Optional
 
@@ -53,6 +55,30 @@ def extract_author(commit_message: str) -> Optional[str]:
     return None
 
 
+def get_pr_author(
+    pr_number: int,
+    repo_owner: str = "logos-storage",
+    repo_name: str = "logos-storage-nim"
+) -> Optional[str]:
+    """Get the GitHub username of the PR author.
+
+    Args:
+        pr_number: The PR number
+        repo_owner: The repository owner (default: logos-storage)
+        repo_name: The repository name (default: logos-storage-nim)
+
+    Returns:
+        The GitHub username if found, None otherwise
+    """
+    try:
+        url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/pulls/{pr_number}"
+        with urllib.request.urlopen(url) as response:
+            data = json.loads(response.read().decode())
+            return data.get("user", {}).get("login")
+    except Exception:
+        return None
+
+
 def format_commit_entry(
     commit_hash: str,
     commit_message: str,
@@ -65,7 +91,7 @@ def format_commit_entry(
     Args:
         commit_hash: The short commit hash
         commit_message: The commit message
-        author: The commit author
+        author: The commit author (display name)
         repo_owner: The repository owner (default: logos-storage)
         repo_name: The repository name (default: logos-storage-nim)
 
@@ -81,14 +107,22 @@ def format_commit_entry(
     # Remove PR number from message if present
     clean_message = re.sub(r"\s*\(#\d+\)", "", commit_message).strip()
 
+    # Get GitHub username from PR if available
+    github_username = None
+    if pr_number:
+        github_username = get_pr_author(pr_number, repo_owner, repo_name)
+
+    # Use GitHub username if available, otherwise use display name
+    author_to_use = github_username if github_username else author
+
     # Format the entry
     if pr_number:
         pr_url = f"https://github.com/{repo_owner}/{repo_name}/pull/{pr_number}"
-        return f"* {clean_message} by @{author} in {pr_url}"
+        return f"* {clean_message} by @{author_to_use} in {pr_url}"
     else:
         # If no PR number, just show commit hash
         commit_url = f"https://github.com/{repo_owner}/{repo_name}/commit/{commit_hash}"
-        return f"* {clean_message} by @{author} in {commit_url}"
+        return f"* {clean_message} by @{author_to_use} in {commit_url}"
 
 
 def get_commits_between(

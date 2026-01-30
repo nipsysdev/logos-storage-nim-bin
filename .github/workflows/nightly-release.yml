@@ -66,14 +66,6 @@ jobs:
       branch_name: ${{ steps.check.outputs.branch_name }}
       previous_commit: ${{ steps.check.outputs.previous_commit }}
     steps:
-      - name: Get latest release
-        id: latest_release
-        uses: pozetroninc/github-action-get-latest-release@master
-        continue-on-error: true
-        with:
-          repository: ${{ github.repository }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Check for new commits
         id: check
         run: |
@@ -103,26 +95,26 @@ jobs:
           API_URL="https://api.github.com/repos/logos-storage/logos-storage-nim/commits/$LATEST_COMMIT"
           COMMIT_DATE=$(curl -s "$API_URL" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data['commit']['committer']['date'])" 2>/dev/null || echo "Unknown")
 
-          # Get latest release description from the action output
-          LATEST_RELEASE="${{ steps.latest_release.outputs.description }}"
+          # Get latest prerelease release from this repository
+          LATEST_PRERELEASE=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases?per_page=10" | python3 -c "import sys, json; data=json.load(sys.stdin); prereleases=[r for r in data if r.get('prerelease')]; print(prereleases[0]['body'] if prereleases else '')" 2>/dev/null || echo "")
 
-          # Extract previous commit hash from release body
-          PREVIOUS_COMMIT=$(echo "$LATEST_RELEASE" | grep -oP 'Commit: \K[a-f0-9]{40}' || echo "")
+          # Extract previous commit hash from prerelease release body
+          PREVIOUS_COMMIT=$(echo "$LATEST_PRERELEASE" | grep -oP 'Commit: \K[a-f0-9]{40}' || echo "")
 
-          # If no release exists, we should build
-          if [ -z "$LATEST_RELEASE" ]; then
+          # If no prerelease exists, we should build
+          if [ -z "$LATEST_PRERELEASE" ]; then
             echo "should_build=true" >> $GITHUB_OUTPUT
             echo "commit_hash=$LATEST_COMMIT" >> $GITHUB_OUTPUT
             echo "commit_short=$LATEST_SHORT" >> $GITHUB_OUTPUT
             echo "commit_date=$COMMIT_DATE" >> $GITHUB_OUTPUT
             echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
             echo "previous_commit=" >> $GITHUB_OUTPUT
-            echo "No previous release found, building for commit: $LATEST_SHORT"
+            echo "No previous prerelease found, building for commit: $LATEST_SHORT"
             exit 0
           fi
 
-          # Check if the release body contains the full commit hash
-          if echo "$LATEST_RELEASE" | grep -q "$LATEST_COMMIT"; then
+          # Check if the prerelease body contains the full commit hash
+          if echo "$LATEST_PRERELEASE" | grep -q "$LATEST_COMMIT"; then
             echo "should_build=false" >> $GITHUB_OUTPUT
             echo "Latest commit $LATEST_SHORT is already released"
           else
