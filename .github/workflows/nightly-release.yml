@@ -280,12 +280,31 @@ jobs:
     outputs:
       commit_changes: ${{ steps.fetch.outputs.changes }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install mise
+        uses: jdx/mise-action@v3
+        with:
+          enable: true
+          cache: true
+
+      - name: Create virtual environment
+        run: |
+          python -m venv venv
+
+      - name: Install dependencies
+        run: |
+          source venv/bin/activate
+          pip install -r requirements-test.txt
+
       - name: Fetch commit changes
         id: fetch
         run: |
+          source venv/bin/activate
+
           PREVIOUS_COMMIT="${{ needs.check-updates.outputs.previous_commit }}"
           CURRENT_COMMIT="${{ needs.check-updates.outputs.commit_hash }}"
-          BRANCH_NAME="${{ needs.check-updates.outputs.branch_name }}"
 
           if [ -z "$PREVIOUS_COMMIT" ]; then
             echo "No previous commit found, this is the first release"
@@ -297,25 +316,23 @@ jobs:
 
           # Clone the upstream repository
           git clone --depth 100 https://github.com/logos-storage/logos-storage-nim.git /tmp/logos-storage-nim
-          cd /tmp/logos-storage-nim
 
-          # Fetch the specific commits
-          git fetch origin $PREVIOUS_COMMIT
-          git fetch origin $CURRENT_COMMIT
+          # Generate release notes using Python script
+          CHANGES=$(python src/release_notes.py \
+            --repo-path /tmp/logos-storage-nim \
+            --previous-commit "$PREVIOUS_COMMIT" \
+            --current-commit "$CURRENT_COMMIT")
 
-          # Get commit list
-          COMMITS=$(git log --pretty=format:"%h - %s (%an, %ar)" $PREVIOUS_COMMIT..$CURRENT_COMMIT)
-
-          if [ -z "$COMMITS" ]; then
+          if [ -z "$CHANGES" ] || [ "$CHANGES" = "No commits found between releases" ]; then
             echo "No commits found between releases"
             echo "changes=No commits found between releases" >> $GITHUB_OUTPUT
           else
             # Count commits
-            COMMIT_COUNT=$(echo "$COMMITS" | wc -l)
+            COMMIT_COUNT=$(echo "$CHANGES" | wc -l)
             echo "Found $COMMIT_COUNT commits"
             
             # Format for YAML (escape newlines)
-            CHANGES_ESCAPED=$(echo "$COMMITS" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+            CHANGES_ESCAPED=$(echo "$CHANGES" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
             echo "changes=$CHANGES_ESCAPED" >> $GITHUB_OUTPUT
           fi
 
@@ -362,10 +379,9 @@ jobs:
           tag_name: ${{ needs.check-updates.outputs.branch_name }}-${{ needs.check-updates.outputs.commit_short }}
           name: ${{ needs.check-updates.outputs.branch_name }}-${{ needs.check-updates.outputs.commit_short }}
           body: |
-            Nightly pre-release of logos-storage-nim static libraries
+            ## Nightly pre-built static librairies of logos-storage-nim
 
-            ⚠️ This is a pre-release build from the latest upstream commits.
-            Use upstream tagged releases for production use.
+            _⚠️ Nightly builds are not suitable for production use._
 
             Commit: ${{ needs.check-updates.outputs.commit_hash }}
             Branch: ${{ needs.check-updates.outputs.branch_name }}
