@@ -142,7 +142,8 @@ pytest --cov=src --cov-report=html
 
 - **Build**: Runs on push to `main` and on any PRs
 - **Nightly Release**: Runs daily at 00:00 UTC and on push to main. Creates pre-releases for new upstream commits
-- **Stable Release**: Runs daily at 00:00 UTC. Creates releases for new upstream tags
+- **Stable Release**: Runs daily at 00:00 UTC and on push to main. Creates releases for new upstream tags
+- **Stable Refresh**: Checks daily and refreshes stable releases older than 89 days
 
 ## Versioning
 
