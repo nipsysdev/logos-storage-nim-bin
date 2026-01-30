@@ -50,16 +50,18 @@ class TestMainSetup:
         mock_build_setup["mock_repo"].assert_called_once()
 
     def test_main_uses_branch_and_commit_together(self, mock_build_setup):
-        """Test that main() accepts both BRANCH and COMMIT when pinning."""
+        """Test that main() rejects BRANCH and COMMIT together (mutually exclusive)."""
         with patch.dict(os.environ, {"BRANCH": "master", "COMMIT": "abc123def456"}, clear=False):
-            main()
+            with pytest.raises(SystemExit) as exc_info:
+                main()
         
-        mock_build_setup["mock_repo"].assert_called_once_with("master", "abc123def456")
+        assert exc_info.value.code == 1
 
     def test_main_uses_default_branch_when_commit_without_branch(self, mock_build_setup):
-        """Test that main() defaults to 'master' when COMMIT is set but BRANCH is not."""
+        """Test that main() uses default branch when COMMIT is set without BRANCH."""
         with patch.dict(os.environ, {"COMMIT": "abc123def456"}, clear=False):
             os.environ.pop("BRANCH", None)
             main()
         
+        # Should use default branch "master" with the specified commit
         mock_build_setup["mock_repo"].assert_called_once_with("master", "abc123def456")

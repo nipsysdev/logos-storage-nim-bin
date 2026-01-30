@@ -43,6 +43,7 @@ class TestMainOrchestration:
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("BRANCH", None)
             os.environ.pop("COMMIT", None)
+            os.environ.pop("TAG", None)
             main()
         
         mock_build_setup["mock_repo"].assert_called_once_with("master", None)
@@ -51,9 +52,19 @@ class TestMainOrchestration:
         """Test that main() calls ensure_logos_storage_repo() with custom BRANCH env var."""
         with patch.dict(os.environ, {"BRANCH": "develop"}, clear=False):
             os.environ.pop("COMMIT", None)
+            os.environ.pop("TAG", None)
             main()
         
         mock_build_setup["mock_repo"].assert_called_once_with("develop", None)
+
+    def test_main_calls_ensure_logos_storage_repo_with_tag(self, mock_build_setup):
+        """Test that main() calls ensure_logos_storage_repo() with TAG env var."""
+        with patch.dict(os.environ, {"TAG": "v0.2.5"}, clear=False):
+            os.environ.pop("BRANCH", None)
+            os.environ.pop("COMMIT", None)
+            main()
+        
+        mock_build_setup["mock_repo"].assert_called_once_with("v0.2.5", None)
 
     def test_main_calls_get_parallel_jobs(self, mock_build_setup):
         """Test that main() calls get_parallel_jobs()."""
@@ -97,6 +108,23 @@ class TestMainOrchestration:
         assert call_args[0][0] == libraries
         assert call_args[0][1] == expected_dist_dir
 
+    def test_main_calls_copy_libraries_with_tag(self, mock_build_setup):
+        """Test that main() calls copy_libraries() with correct output path when using TAG."""
+        libraries = [Path("lib1.a"), Path("lib2.a")]
+        mock_build_setup["mock_collect"].return_value = libraries
+        
+        with patch.dict(os.environ, {"TAG": "v0.2.5"}, clear=False):
+            os.environ.pop("BRANCH", None)
+            os.environ.pop("COMMIT", None)
+            main()
+        
+        # Verify the output directory path uses tag format
+        expected_dist_dir = Path("dist") / "v0.2.5-linux-amd64"
+        mock_build_setup["mock_copy_libs"].assert_called_once()
+        call_args = mock_build_setup["mock_copy_libs"].call_args
+        assert call_args[0][0] == libraries
+        assert call_args[0][1] == expected_dist_dir
+
     def test_main_calls_generate_checksum_with_correct_path(self, mock_build_setup):
         """Test that main() calls copy_header_file and generate_sha256sums with correct paths."""
         main()
@@ -116,6 +144,7 @@ class TestMainOrchestration:
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("BRANCH", None)
             os.environ.pop("COMMIT", None)
+            os.environ.pop("TAG", None)
             main()
         
         # Verify call order
@@ -143,6 +172,22 @@ class TestMainOrchestration:
         assert mock_build_setup["mock_copy_libs"].call_args_list == [expected_calls[7]]
         assert mock_build_setup["mock_copy"].call_args_list == [expected_calls[8]]
         assert mock_build_setup["mock_checksums"].call_args_list == [expected_calls[9]]
+
+    def test_main_exits_with_error_when_tag_and_branch_both_set(self, mock_build_setup):
+        """Test that main() exits with error when both TAG and BRANCH are set."""
+        with patch.dict(os.environ, {"TAG": "v0.2.5", "BRANCH": "master"}, clear=False):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            
+            assert exc_info.value.code == 1
+
+    def test_main_exits_with_error_when_tag_and_commit_both_set(self, mock_build_setup):
+        """Test that main() exits with error when both TAG and COMMIT are set."""
+        with patch.dict(os.environ, {"TAG": "v0.2.5", "COMMIT": "abc123"}, clear=False):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            
+            assert exc_info.value.code == 1
 
     def test_main_propagates_exception_from_get_platform_identifier(self, mock_build_setup):
         """Test that main() propagates exceptions from get_platform_identifier()."""
