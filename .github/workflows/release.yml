@@ -212,7 +212,7 @@ jobs:
         with:
           name: libstorage-${{ matrix.os }}-${{ matrix.cpu }}
           path: dist/*/
-          retention-days: 30
+          retention-days: 90
 
       - name: Verify artifacts (Windows)
         if: runner.os == 'Windows'
