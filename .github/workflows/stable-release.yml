@@ -73,14 +73,22 @@ jobs:
       - name: Check for new upstream tags
         id: check
         run: |
-          # Get latest tag from upstream
-          git ls-remote --tags https://github.com/logos-storage/logos-storage-nim.git | grep -v '{}' | tail -n1 > latest_tag.txt
-          LATEST_TAG=$(awk '{print $2}' latest_tag.txt | sed 's/refs\/tags\///')
-          LATEST_COMMIT=$(awk '{print $1}' latest_tag.txt)
+          # Get latest stable release from upstream (exclude pre-releases)
+          # Use GitHub API to properly identify pre-releases
+          API_URL="https://api.github.com/repos/logos-storage/logos-storage-nim/releases"
+          LATEST_RELEASE=$(curl -s "$API_URL" | python3 -c "import sys, json; releases = json.load(sys.stdin); stable_releases = [r for r in releases if not r.get('prerelease', False)]; print(f\"{stable_releases[0]['tag_name']}|{stable_releases[0]['target_commitish']}\")" 2>/dev/null)
 
-          # Get tag date using GitHub API
-          API_URL="https://api.github.com/repos/logos-storage/logos-storage-nim/git/refs/tags/$LATEST_TAG"
-          TAG_DATE=$(curl -s "$API_URL" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data['object']['type'] == 'tag' and data['object']['date'] or data['object']['url'])" 2>/dev/null || echo "Unknown")
+          if [ -z "$LATEST_RELEASE" ]; then
+            echo "No stable releases found in upstream"
+            exit 1
+          fi
+
+          LATEST_TAG=$(echo "$LATEST_RELEASE" | cut -d'|' -f1)
+          LATEST_COMMIT=$(echo "$LATEST_RELEASE" | cut -d'|' -f2)
+
+          # Get tag date using GitHub releases API
+          API_URL="https://api.github.com/repos/logos-storage/logos-storage-nim/releases/tags/$LATEST_TAG"
+          TAG_DATE=$(curl -s "$API_URL" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('published_at', 'Unknown'))" 2>/dev/null || echo "Unknown")
 
           # Get our latest stable release tag
           LATEST_RELEASE="${{ steps.latest_release.outputs.description }}"
@@ -254,9 +262,12 @@ jobs:
             NOTES=$(git ls-remote --tags https://github.com/logos-storage/logos-storage-nim.git "refs/tags/$TAG_NAME^{}" | awk '{print $1}' | xargs -I{} sh -c 'git fetch https://github.com/logos-storage/logos-storage-nim.git {} 2>/dev/null && git show -s --format=%B {}' 2>/dev/null || echo "")
           fi
 
-          # Escape for YAML
-          NOTES_ESCAPED=$(echo "$NOTES" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
-          echo "notes=$NOTES_ESCAPED" >> $GITHUB_OUTPUT
+          # Escape for YAML - only escape quotes, keep newlines as-is
+          NOTES_ESCAPED=$(echo "$NOTES" | sed 's/"/\\"/g')
+          # Use a delimiter to preserve newlines in the output
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES_ESCAPED" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
   # Create release
   release:
@@ -301,7 +312,7 @@ jobs:
           tag_name: ${{ needs.check-updates.outputs.tag_name }}
           name: ${{ needs.check-updates.outputs.tag_name }}
           body: |
-            Pre-built static libraries for logos-storage-nim ${{ needs.check-updates.outputs.tag_name }}
+            ## Pre-built static libraries for logos-storage-nim ${{ needs.check-updates.outputs.tag_name }}
 
             Tag: ${{ needs.check-updates.outputs.tag_name }}
             Commit: ${{ needs.check-updates.outputs.tag_commit }}
@@ -324,9 +335,9 @@ jobs:
             Archive checksums: SHA256SUMS.txt
 
             ---
-            > Upstream Release Notes:
-            >
-            > ${{ needs.fetch-notes.outputs.release_notes }}
+            ### Upstream Release Notes:
+
+            ${{ needs.fetch-notes.outputs.release_notes }}
           files: |
             /tmp/release/*.tar.gz
             /tmp/release/SHA256SUMS.txt
