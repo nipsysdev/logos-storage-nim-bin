@@ -351,6 +351,9 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule'
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Check if stable release needs refresh
         id: check_refresh
         run: |
