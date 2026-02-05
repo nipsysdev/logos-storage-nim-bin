@@ -323,9 +323,12 @@ jobs:
             COMMIT_COUNT=$(echo "$CHANGES" | wc -l)
             echo "Found $COMMIT_COUNT commits"
             
-            # Format for YAML (escape newlines)
-            CHANGES_ESCAPED=$(echo "$CHANGES" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
-            echo "changes=$CHANGES_ESCAPED" >> $GITHUB_OUTPUT
+            # Escape for YAML - only escape quotes, keep newlines as-is
+            CHANGES_ESCAPED=$(echo "$CHANGES" | sed 's/"/\\"/g')
+            # Use a delimiter to preserve newlines in the output
+            echo "changes<<EOF" >> $GITHUB_OUTPUT
+            echo "$CHANGES_ESCAPED" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
           fi
 
   # Create release
