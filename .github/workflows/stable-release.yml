@@ -62,14 +62,6 @@ jobs:
       tag_date: ${{ steps.check.outputs.tag_date }}
       tag_commit: ${{ steps.check.outputs.tag_commit }}
     steps:
-      - name: Get latest stable release
-        id: latest_release
-        uses: pozetroninc/github-action-get-latest-release@master
-        continue-on-error: true
-        with:
-          repository: ${{ github.repository }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Check for new upstream tags
         id: check
         run: |
@@ -90,21 +82,21 @@ jobs:
           API_URL="https://api.github.com/repos/logos-storage/logos-storage-nim/releases/tags/$LATEST_TAG"
           TAG_DATE=$(curl -s "$API_URL" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('published_at', 'Unknown'))" 2>/dev/null || echo "Unknown")
 
-          # Get our latest stable release tag
-          LATEST_RELEASE="${{ steps.latest_release.outputs.description }}"
+          # Get latest stable release from this repository (exclude pre-releases)
+          OUR_LATEST_STABLE=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases?per_page=10" | python3 -c "import sys, json; data=json.load(sys.stdin); stable=[r for r in data if not r.get('prerelease')]; print(stable[0]['tag_name'] if stable else '')" 2>/dev/null || echo "")
 
-          # If no release exists, we should build
-          if [ -z "$LATEST_RELEASE" ]; then
+          # If no stable release exists, we should build
+          if [ -z "$OUR_LATEST_STABLE" ]; then
             echo "should_build=true" >> $GITHUB_OUTPUT
             echo "tag_name=$LATEST_TAG" >> $GITHUB_OUTPUT
             echo "tag_date=$TAG_DATE" >> $GITHUB_OUTPUT
             echo "tag_commit=$LATEST_COMMIT" >> $GITHUB_OUTPUT
-            echo "No previous release found, building for tag: $LATEST_TAG"
+            echo "No previous stable release found, building for tag: $LATEST_TAG"
             exit 0
           fi
 
-          # Check if the release body contains the tag name
-          if echo "$LATEST_RELEASE" | grep -q "$LATEST_TAG"; then
+          # Compare tag names directly
+          if [ "$LATEST_TAG" == "$OUR_LATEST_STABLE" ]; then
             echo "should_build=false" >> $GITHUB_OUTPUT
             echo "Latest tag $LATEST_TAG is already released"
           else
@@ -112,7 +104,7 @@ jobs:
             echo "tag_name=$LATEST_TAG" >> $GITHUB_OUTPUT
             echo "tag_date=$TAG_DATE" >> $GITHUB_OUTPUT
             echo "tag_commit=$LATEST_COMMIT" >> $GITHUB_OUTPUT
-            echo "New tag detected: $LATEST_TAG"
+            echo "New tag detected: $LATEST_TAG (our latest: $OUR_LATEST_STABLE)"
           fi
 
   # Matrix build
