@@ -1,5 +1,5 @@
-# Android-specific Makefile for logos-storage-nim
-# Optimized for CLIENT_LITE builds (SQLite only, no LevelDB)
+# Android CLIENT_LITE Makefile - Excludes REST API entirely
+# Only builds core P2P storage functionality
 
 # Android NDK configuration
 NDK_ROOT ?= $(HOME)/Android/Sdk/ndk/29.0.14206865
@@ -15,64 +15,36 @@ AR := $(NDK_TARGET)/bin/llvm-ar
 CFLAGS := -Os -fPIC -target aarch64-linux-android21
 LDFLAGS := 
 
-# CLIENT_LITE mode - only build essential dependencies
-# Skip: libbacktrace (problematic on Android) and libupnp (may not be needed)
+# CLIENT_LITE mode - only build essential P2P components
 ANDROID_DEPS := libnatpmp.a
 
-# Debug info
-ANDROID_DEPS_DEBUG := $(ANDROID_DEPS)
+.PHONY: deps-android libstorage-androidlite clean-android
 
-.PHONY: deps-android libstorage-android clean-android test-android
-
-# Android-only dependencies (minimal set)
+# Android-only dependencies (minimal set for client-lite)
 deps-android: init-submodules $(ANDROID_DEPS)
-	@echo "Android CLIENT_LITE dependencies built: $(ANDROID_DEPS_DEBUG)"
+	@echo "Android CLIENT_LITE dependencies built: $(ANDROID_DEPS)"
 
-# Initialize essential submodules for CLIENT_LITE
+# Initialize essential git submodules for CLIENT_LITE
 init-submodules:
-	@echo "Initializing essential git submodules for Android..."
-	+ git submodule update --init --recursive vendor/logos-storage-nim-dht
-	+ git submodule update --init --recursive vendor/nim-nat-traversal
-	+ git submodule update --init --recursive vendor/nim-bearssl
-	+ git submodule update --init --recursive vendor/nim-stew
-	+ git submodule update --init --recursive vendor/nim-chronicles
-	+ git submodule update --init --recursive vendor/nim-chronos
-	+ git submodule update --init --recursive vendor/nim-coreutils || true
-	@echo "✓ Essential submodules initialized for Android"
+	@echo "Initializing ALL git submodules for Android CLIENT_LITE..."
+	+ cd ../logos-storage-nim && git submodule update --init --recursive
+	@echo "✓ All submodules initialized for Android CLIENT_LITE"
 
-# Build NAT-PMP library for Android (needed for P2P)
-libnatpmp.a: | sanity-checks
+# Build NAT traversal for Android
+libnatpmp.a:
 	@echo "Building libnatpmp for Android ARM64..."
-	+ cd vendor/nim-nat-traversal/vendor/libnatpmp-upstream && \
-		CC=$(CC) AR=$(AR) CFLAGS="$(CFLAGS)" \
-		$(MAKE) libnatpmp.a
+	cd ../logos-storage-nim/vendor/nim-nat-traversal/vendor/libnatpmp-upstream && \
+	CC=$(CC) AR=$(AR) CFLAGS="$(CFLAGS)" \
+	make libnatpmp.a
 	@echo "✓ libnatpmp.a built for Android"
 
-# Android dependencies target
-deps: init-submodules libnatpmp.a
-	@echo "✓ Android dependencies built"
-
-# Sanity checks for Android build
-sanity-checks:
-	@echo "Checking Android build environment..."
-	@if [ ! -f "$(CC)" ]; then \
-		echo "ERROR: Android compiler not found: $(CC)"; \
-		exit 1; \
-	fi
-	@if [ ! -f "$(AR)" ]; then \
-		echo "ERROR: Android archiver not found: $(AR)"; \
-		exit 1; \
-	fi
-	@if [ ! -d "vendor/nim-nat-traversal" ]; then \
-		echo "ERROR: nim-nat-traversal submodule not found"; \
-		exit 1; \
-	fi
-	@echo "✓ Android build environment validated"
-
-# Build libstorage for Android with CLIENT_LITE
-libstorage-android: init-submodules 
-	@echo "Building libstorage for Android CLIENT_LITE..."
-	export PATH="/home/lowkey/.nimble/bin:/home/lowkey/.choosenim/toolchains/nim-2.2.8/bin:$$PATH" && \
+# Build CLIENT_LITE libstorage for Android (no REST API)
+libstorage-androidlite: deps-android
+	@echo "Building CLIENT_LITE libstorage for Android ARM64..."
+	@echo "Using CC: $(CC)"
+	@echo "Using CXX: $(CXX)"
+	@echo "Using AR: $(AR)"
+	@echo "Using HOST_TRIPLE: $(HOST_TRIPLE)"
 	export CLIENT_LITE=1 && \
 	export STATIC=1 && \
 	export HOST_TRIPLE=$(HOST_TRIPLE) && \
@@ -81,8 +53,41 @@ libstorage-android: init-submodules
 	export AR=$(AR) && \
 	export NIM_PARAMS="-d:CLIENT_LITE -d:disable_libbacktrace" && \
 	export LIBSTORAGE_PARAMS="-d:CLIENT_LITE -d:disable_libbacktrace" && \
-	make deps USE_SYSTEM_NIM=1 && \
-	nim c \
+	cd ../logos-storage-nim && nim c \
+		--cpu:arm64 \
+		--os:android \
+		--cc:clang \
+		--clang.linker.exe:clang \
+		--clang.linker.exe:clang++ \
+		--ar.exe:llvm-ar \
+		--path:vendor \
+		--path:vendor/nim-taskpools \
+		--path:vendor/nim-chronicles \
+		--path:vendor/nim-chronos \
+		--path:vendor/logos-storage-nim-dht \
+		--path:vendor/nim-libp2p \
+		--path:vendor/nim-confutils \
+		--path:vendor/nim-stew \
+		--path:vendor/nim-datastore \
+		--path:vendor/nim-eth \
+		--path:vendor/nim-ethers \
+		--path:vendor/nim-bearssl \
+		--path:vendor/nim-metrics \
+		--path:vendor/questionable \
+		--path:vendor/nim-presto \
+		--path:vendor/nim-secp256k1 \
+		--path:vendor/nimcrypto \
+		--path:vendor/nim-nat-traversal \
+		--path:vendor/nim-asyncutils \
+		--path:vendor/nim-faststreams \
+		--path:vendor/nim-serialization \
+		--path:vendor/nim-blscurve \
+		--path:vendor/constantine \
+		--path:vendor/nim-contract-abi \
+		--path:vendor/nim-websock \
+		--path:vendor/nim-toml-serialization \
+		--path:vendor/stint \
+		--path:vendor/nim-serde \
 		--out:build/libstorage.a \
 		--threads:on \
 		--app:staticlib \
@@ -94,38 +99,19 @@ libstorage-android: init-submodules
 		--nimMainPrefix:libstorage \
 		--d:noSignalHandler \
 		--d:chronicles_runtime_filtering \
-		--d:chronicles_log_level=TRACE \
-		--verbosity:0 \
+		--d:chronicles_log_level=ERROR \
+		--verbosity:2 \
 		--hints:off \
 		--d:release \
 		--d:CLIENT_LITE \
 		--d:disable_libbacktrace \
 		library/libstorage.nim
-	@echo "✓ Android libstorage.a built successfully"
+	@echo "✓ CLIENT_LITE libstorage built for Android"
+	@echo "Output: build/libstorage.a (SQLite-only, no REST API)"
 
-# Clean Android artifacts
+# Clean Android build artifacts
 clean-android:
-	@echo "Cleaning Android build artifacts..."
-	rm -f build/libstorage.a
-	rm -f vendor/nim-nat-traversal/vendor/libnatpmp-upstream/libnatpmp.a
-	@echo "✓ Android cleanup complete"
-
-# Test Android build
-test-android: libstorage-android
-	@echo "Testing Android build..."
-	@if [ -f "build/libstorage.a" ]; then \
-		echo "✓ Android libstorage.a exists"; \
-		file build/libstorage.a; \
-		echo "✓ Android build test passed"; \
-	else \
-		echo "✗ Android build test failed - libstorage.a not found"; \
-		exit 1; \
-	fi
-
-# Help target
-help:
-	@echo "Android CLIENT_LITE Makefile targets:"
-	@echo "  deps-android     - Build Android dependencies only"
-	@echo "  libstorage-android - Build libstorage for Android"
-	@echo "  clean-android    - Clean Android artifacts"
-	@echo "  test-android     - Test Android build"
+	@echo "Cleaning Android CLIENT_LITE build artifacts..."
+	rm -f ../logos-storage-nim/build/libstorage.a
+	cd ../logos-storage-nim/vendor/nim-nat-traversal/vendor/libnatpmp-upstream && make clean || true
+	@echo "✓ Android CLIENT_LITE cleanup complete"
