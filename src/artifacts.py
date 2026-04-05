@@ -138,7 +138,6 @@ def build_libstorage_android(logos_storage_dir: Path, jobs: int, patch_dir: Path
     
     # Initialize submodules first (before applying patches)
     print("Initializing Android git submodules...")
-    print("Initializing Android git submodules...")
     try:
         # Initialize and update submodules manually to avoid bundled Nim build
         run_command([
@@ -170,6 +169,9 @@ def build_libstorage_android(logos_storage_dir: Path, jobs: int, patch_dir: Path
         android_env["NIM_PARAMS"] += " -d:CLIENT_LITE"
     else:
         android_env["NIM_PARAMS"] = "-d:CLIENT_LITE"
+    
+    # Ensure PATH includes Nim binaries
+    print(f"Android PATH: {android_env.get('PATH', 'not set')}")
         
     build_cmd = ["make", "-j", str(jobs), "-C", str(logos_storage_dir), "libstorage", "USE_SYSTEM_NIM=1", "CLIENT_LITE=1"]
     print(f"Build command: {' '.join(build_cmd)}")
@@ -183,7 +185,7 @@ def build_libstorage_android(logos_storage_dir: Path, jobs: int, patch_dir: Path
         print(f"Standard make failed, trying Android-specific Makefile...")
         
         # Use our custom Android CLIENT_LITE Makefile (SQLite-only, no REST)
-        android_makefile = logos_storage_dir.parent / "patches/client-lite/Makefile.android.clientlite"
+        android_makefile = logos_storage_dir.parent / "patches/client-lite/Makefile.android"
         if not android_makefile.exists():
             raise FileNotFoundError(f"Android CLIENT_LITE Makefile not found: {android_makefile}")
         
@@ -191,7 +193,7 @@ def build_libstorage_android(logos_storage_dir: Path, jobs: int, patch_dir: Path
         
         # Build using our custom Android CLIENT_LITE Makefile
         run_command([
-            "make", "-f", str(android_makefile), 
+            "make", "-f", str(android_makefile),
             "libstorage-androidlite"
         ], cwd=logos_storage_dir.parent, env=android_env)
         
@@ -204,6 +206,28 @@ def build_libstorage_android(logos_storage_dir: Path, jobs: int, patch_dir: Path
             print(f"STDOUT:\n{e.stdout}")
         if hasattr(e, 'stderr') and e.stderr:
             print(f"STDERR:\n{e.stderr}")
+        
+        # Try to get more detailed error information
+        print("\n=== Additional Debug Information ===")
+        print(f"Working directory: {logos_storage_dir.parent}")
+        print(f"Makefile exists: {android_makefile.exists()}")
+        print(f"Environment variables:")
+        for key, value in android_env.items():
+            if key in ['CC', 'CXX', 'AR', 'HOST_TRIPLE', 'CLIENT_LITE']:
+                print(f"  {key}={value}")
+        
+        # Try to run make with verbose output to see what's failing
+        try:
+            print("\n=== Attempting verbose make output ===")
+            verbose_cmd = ["make", "-f", str(android_makefile), "libstorage-androidlite", "VERBOSE=1"]
+            result = run_command(verbose_cmd, cwd=logos_storage_dir.parent, env=android_env, check=False)
+            if result.stdout:
+                print(f"Verbose STDOUT:\n{result.stdout}")
+            if result.stderr:
+                print(f"Verbose STDERR:\n{result.stderr}")
+        except Exception as verbose_error:
+            print(f"Failed to get verbose output: {verbose_error}")
+        
         raise
     
     print("Android libstorage build complete")

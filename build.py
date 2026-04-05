@@ -80,7 +80,12 @@ def main() -> None:
     
     # Reset repository to clean state before building (can be skipped with SKIP_REPO_RESET)
     if not os.environ.get("SKIP_REPO_RESET"):
-        reset_repository(logos_storage_dir)
+        try:
+            reset_repository(logos_storage_dir)
+            print("✓ Repository reset complete")
+        except Exception as e:
+            print(f"Warning: Failed to reset repository: {e}")
+            print("Continuing with potentially dirty state...")
     else:
         print("Skipping repository reset (SKIP_REPO_RESET is set)")
 

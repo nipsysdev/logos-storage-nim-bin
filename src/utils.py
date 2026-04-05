@@ -127,11 +127,14 @@ def configure_android_environment() -> dict:
     ndk_root = get_android_ndk_root()
     host_triple = get_android_host_triple()
     
-    # NDK toolchain paths
+    # NDK toolchain paths - try primary location first
     ndk_target = Path(ndk_root) / "toolchains/llvm/prebuilt/linux-x86_64"
     
+    # If primary doesn't exist, try alternative location
     if not ndk_target.exists():
-        raise ValueError(f"NDK toolchain not found at {ndk_target}")
+        ndk_target = Path(ndk_root) / "toolchains/llvm/prebuilt/linux-x86_64"
+        if not ndk_target.exists():
+            raise ValueError(f"NDK toolchain not found at {ndk_root}/toolchains/llvm/prebuilt/")
     
     # Android compilers
     cc_path = ndk_target / "bin/aarch64-linux-android21-clang"
@@ -141,13 +144,6 @@ def configure_android_environment() -> dict:
     for tool_path in [cc_path, cxx_path, ar_path]:
         if not tool_path.exists():
             raise ValueError(f"Android tool not found: {tool_path}")
-    
-    # Secondary: traditional NDK path
-    ndk_alt = Path(ndk_root) / "toolchains/llvm/prebuilt/linux-x86_64"
-    if ndk_alt.exists():
-        cc_path = ndk_alt / "bin/aarch64-linux-android21-clang"
-        cxx_path = ndk_alt / "bin/aarch64-linux-android21-clang++"
-        ar_path = ndk_alt / "bin/llvm-ar"
     
     # Add nim to PATH - use environment variables or sensible defaults
     nimble_bin = os.environ.get("NIMBLE_BIN", os.path.expanduser("~/.nimble/bin"))
