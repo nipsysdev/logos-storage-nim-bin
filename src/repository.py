@@ -215,24 +215,39 @@ def apply_patches(repo_dir: Path, patch_dir: Path) -> None:
     
     for patch_file in patch_files:
         print(f"  Applying {patch_file.name}...")
-        # Use absolute path and correct working directory
-        result = run_command([
-            "patch", "-p1", "-i", str(patch_file.absolute())	
-        ], cwd=repo_dir, check=False)
+        
+        # Check if patch has a working directory specification
+        working_dir = None
+        with open(patch_file, 'r') as f:
+            first_line = f.readline().strip()
+            if first_line.startswith("# PATCH_WORKING_DIR:"):
+                working_dir = first_line.split(":", 1)[1].strip()
+        
+        # Determine the correct working directory and apply patch
+        if working_dir:
+            # Apply patch from within the specified subdirectory
+            patch_cwd = repo_dir / working_dir
+            # Use absolute path for the patch file
+            result = run_command([
+                "git", "apply", str(patch_file.absolute())	
+            ], cwd=patch_cwd, check=False)
+        else:
+            # Apply patch from repository root (default behavior)
+            result = run_command([
+                "git", "apply", "-p1", str(patch_file.absolute())	
+            ], cwd=repo_dir, check=False)
         
         if result.returncode != 0:
-            print(f"  Warning: Failed to apply {patch_file.name}")
+            print(f"  ✗ Failed to apply {patch_file.name}")
             if result.stdout:
                 print(f"    stdout: {result.stdout}")
             if result.stderr:
                 print(f"    stderr: {result.stderr}")
+            raise RuntimeError(f"Failed to apply patch {patch_file.name}")
         else:
             print(f"  ✓ Applied {patch_file.name}")
     
     print("Patch application complete")
-    
-    # Apply direct file replacements for critical files that patches can't handle
-    apply_direct_replacements(repo_dir, client_lite_patches)
 
 
 def get_commit_info(repo_dir: Path) -> CommitInfo:
@@ -292,80 +307,3 @@ def ensure_logos_storage_repo(branch: str, commit: Optional[str] = None) -> Tupl
     return logos_storage_dir, commit_info
 
 
-def apply_direct_replacements(repo_dir: Path, patch_dir: Path) -> None:
-    """Apply direct file replacements for critical patches.
-    
-    Some patches (especially for submodule files) can't be applied cleanly.
-    This function handles direct file copying for those cases.
-    
-    Args:
-        repo_dir: Path to the logos-storage-nim repository
-        patch_dir: Path to client-lite patch directory
-    """
-    # List of file replacements: {target_path: source_filename}
-    replacements = {
-        "vendor/nim-datastore/datastore.nim": "datastore.nim.clientlite",
-        "Makefile.android": "Makefile.android"
-    }
-    
-    for target_path, source_filename in replacements.items():
-        source_file = patch_dir / source_filename
-        target_file = repo_dir / target_path
-        
-        if source_file.exists():
-            print(f"  Applying direct replacement: {target_path}")
-            try:
-                # Create parent directory if it doesn't exist
-                target_file.parent.mkdir(parents=True, exist_ok=True)
-                
-                # Copy the file
-                run_command(["cp", str(source_file), str(target_file)])
-                print(f"  ✓ Applied direct replacement: {target_path}")
-            except Exception as e:
-                print(f"  Warning: Failed to apply direct replacement {target_path}: {e}")
-    
-    # Apply LevelDB client-lite modifications
-    apply_leveldb_clientlite_fixes(repo_dir)
-
-
-def apply_leveldb_clientlite_fixes(repo_dir: Path) -> None:
-    """Apply LevelDB skip modifications for CLIENT_LITE builds."""
-    leveldb_raw_file = repo_dir / "vendor/nim-leveldbstatic/leveldbstatic/raw.nim"
-    
-    try:
-        if not leveldb_raw_file.exists():
-            print("  Warning: LevelDB raw.nim file not found")
-            return
-        
-        # Read the current file
-        with open(leveldb_raw_file, 'r') as f:
-            content = f.read()
-        
-        # Check if already modified
-        if "CLIENT_LITE: Skipping LevelDB build entirely" in content:
-            print("  LevelDB already patched for CLIENT_LITE")
-            return
-        
-        # Apply the modifications
-        original_proc = 'proc buildLevelDb() =\n  if fileExists(buildDir/"Makefile"):'
-        new_proc = '''proc buildLevelDb() =
-  when defined(CLIENT_LITE):
-    echo "CLIENT_LITE: Skipping LevelDB build entirely"
-    return
-
-  if fileExists(buildDir/"Makefile"):'''
-        
-        original_static = "static:\n  buildLevelDb()"
-        new_static = "static:\n  when not defined(CLIENT_LITE):\n    buildLevelDb()"
-        
-        content = content.replace(original_proc, new_proc)
-        content = content.replace(original_static, new_static)
-        
-        # Write back
-        with open(leveldb_raw_file, 'w') as f:
-            f.write(content)
-        
-        print("  ✓ Applied LevelDB CLIENT_LITE modifications")
-        
-    except Exception as e:
-        print(f"  Warning: Failed to apply LevelDB fixes: {e}")
