@@ -1,17 +1,19 @@
+# PATCH_WORKING_DIR: .
 diff --git a/storage/storage.nim b/storage/storage.nim
-index 16a2cb20..1fce92b5 100644
+index 16a2cb20..99c8add3 100644
 --- a/storage/storage.nim
 +++ b/storage/storage.nim
-@@ -22,6 +22,8 @@ import pkg/confutils
+@@ -21,7 +21,8 @@ import pkg/libp2p
+ import pkg/confutils
  import pkg/confutils/defs
  import pkg/stew/io2
- import pkg/datastore
+-import pkg/datastore
 +when defined(CLIENT_LITE):
 +  import pkg/datastore/sql
  import pkg/stew/io2
  
  import ./node
-@@ -181,7 +183,10 @@ proc new*(
+@@ -181,7 +182,10 @@ proc new*(
      )
  
    let providersPath = config.dataDir / StorageDhtProvidersNamespace
@@ -23,7 +25,7 @@ index 16a2cb20..1fce92b5 100644
    if discoveryStoreRes.isErr:
      error "Failed to initialize discovery datastore",
        path = providersPath, err = discoveryStoreRes.error.msg
-@@ -200,32 +205,44 @@ proc new*(
+@@ -200,32 +204,44 @@ proc new*(
  
      network = BlockExcNetwork.new(switch)
  
@@ -34,15 +36,16 @@ index 16a2cb20..1fce92b5 100644
 -          FSDatastore.new($config.dataDir, depth = 5).expect(
 -            "Should create repo file data store!"
 -          )
-+    when defined(CLIENT_LITE):
-+      repoData = Datastore(
-+        SQLiteDatastore.new($config.dataDir).expect(
-+          "Should create repo SQLite data store!"
-         )
+-        )
 -      of repoSQLite:
 -        Datastore(
 -          SQLiteDatastore.new($config.dataDir).expect(
 -            "Should create repo SQLite data store!"
++    when defined(CLIENT_LITE):
++      repoData = Datastore(
++        SQLiteDatastore.new($config.dataDir).expect(
++          "Should create repo SQLite data store!"
++         )
 +      )
 +    else:
 +      repoData =
@@ -52,18 +55,18 @@ index 16a2cb20..1fce92b5 100644
 +            FSDatastore.new($config.dataDir, depth = 5).expect(
 +              "Should create repo file data store!"
 +            )
++           )
++        of repoSQLite:
++          Datastore(
++            SQLiteDatastore.new($config.dataDir).expect(
++              "Should create repo SQLite data store!"
++            )
            )
 -        )
 -      of repoLevelDb:
 -        Datastore(
 -          LevelDbDatastore.new($config.dataDir).expect(
 -            "Should create repo LevelDB data store!"
-+        of repoSQLite:
-+          Datastore(
-+            SQLiteDatastore.new($config.dataDir).expect(
-+              "Should create repo SQLite data store!"
-+            )
-+          )
 +        of repoLevelDb:
 +          Datastore(
 +            LevelDbDatastore.new($config.dataDir).expect(

@@ -1,16 +1,22 @@
---- a/vendor/nim-leveldbstatic/leveldbstatic/prelude.nim
-+++ b/vendor/nim-leveldbstatic/leveldbstatic/prelude.nim
-@@ -16,7 +16,10 @@ proc buildLevelDb() =
-building LevelDB: " & cmd
-   let (output, exitCode) = gorgeEx cmd
+# PATCH_WORKING_DIR: vendor/nim-leveldbstatic/leveldbstatic
+diff --git a/leveldbstatic/prelude.nim b/leveldbstatic/prelude.nim
+index af9c9e7..2c34a4c 100644
+--- a/leveldbstatic/prelude.nim
++++ b/leveldbstatic/prelude.nim
+@@ -37,10 +37,14 @@ proc buildLevelDb() =
    if exitCode != 0:
      discard gorge "rm -rf " & buildDir
+     echo output
 -    raise (ref Defect)(msg: "Failed to build LevelDB")
 +    when defined(CLIENT_LITE):
 +      echo "CLIENT_LITE: Skipping LevelDB build failure"
 +    else:
 +      raise (ref Defect)(msg: "Failed to build LevelDB")
-
+ 
  static:
+-  buildLevelDb()
 +  when not defined(CLIENT_LITE):
-   buildLevelDb()
++    buildLevelDb()
+ 
+ when defined(windows):
+   {.compile: envWindows.}

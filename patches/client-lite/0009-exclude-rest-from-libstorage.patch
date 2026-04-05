@@ -1,4 +1,5 @@
---- library/libstorage.nim.orig
+# PATCH_WORKING_DIR: .
+--- library/libstorage.nim
 +++ library/libstorage.nim
 @@ -4,7 +4,6 @@
  import

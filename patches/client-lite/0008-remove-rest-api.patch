@@ -1,4 +1,5 @@
---- library/libstorage.nim.orig
+# PATCH_WORKING_DIR: .
+--- library/libstorage.nim
 +++ library/libstorage.nim
 @@ -7,7 +7,6 @@ import
    ../storage/rest/[api, coders],
@@ -9,7 +10,7 @@
    pkg/questionable,
    pkg/asynctest
 
---- storage/storage.nim.orig
+--- storage/storage.nim
 +++ storage/storage.nim
 @@ -50,14 +50,6 @@ proc new*(
      # Start REST server if configured
@@ -21,9 +22,9 @@
 -          updateLogLevel(conf.logLevel)
 -        except CatchableError as e:
 -          debug "Error using log configuration: ", e.msg
--
+
 -        setupMetrics(storage)
--
+
          try:
            info "Starting storage node on ", listenAddrs
            info "REST server on ", conf.restServer

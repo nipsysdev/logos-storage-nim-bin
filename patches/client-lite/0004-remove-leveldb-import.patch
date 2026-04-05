@@ -1,5 +1,8 @@
---- vendor/nim-datastore/datastore.nim.orig
-+++ vendor/nim-datastore/datastore.nim
+# PATCH_WORKING_DIR: vendor/nim-datastore
+diff --git a/datastore.nim b/datastore.nim
+index 38bd5f6..81eb291 100644
+--- a/datastore.nim
++++ b/datastore.nim
 @@ -1,8 +1,12 @@
  import ./datastore/datastore
  import ./datastore/fsds
