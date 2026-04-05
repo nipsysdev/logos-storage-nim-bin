@@ -2,7 +2,7 @@
 # Optimized for CLIENT_LITE builds (SQLite only, no LevelDB)
 
 # Android NDK configuration
-NDK_ROOT ?= /home/lowkey/Android/Sdk/ndk/29.0.14206865
+NDK_ROOT ?= $(HOME)/Android/Sdk/ndk/29.0.14206865
 HOST_TRIPLE ?= aarch64-unknown-linux-android
 
 # Android toolchain paths

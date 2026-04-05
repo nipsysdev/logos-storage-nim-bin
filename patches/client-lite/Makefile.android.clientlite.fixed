@@ -6,7 +6,7 @@ LOGOS_STORAGE_SRC := ../logos-storage-nim
 PATCH_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 
 # Android NDK configuration
-NDK_ROOT ?= /home/lowkey/Android/Sdk/ndk/29.0.14206865
+NDK_ROOT ?= $(HOME)/Android/Sdk/ndk/29.0.14206865
 HOST_TRIPLE ?= aarch64-unknown-linux-android
 
 # Android toolchain paths
