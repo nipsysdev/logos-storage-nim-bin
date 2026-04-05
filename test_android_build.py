@@ -14,8 +14,9 @@ def test_android_build():
     
     # Set environment variables for Android build
     os.environ["TARGET_PLATFORM"] = "android"
-    os.environ["ANDROID_NDK_ROOT"] = "/home/lowkey/Android/Sdk/ndk/29.0.14206865"
-    os.environ["NDK_ROOT"] = "/home/lowkey/Android/Sdk/ndk/29.0.14206865"
+    android_ndk_path = os.path.expanduser("~/Android/Sdk/ndk/29.0.14206865")
+    os.environ["ANDROID_NDK_ROOT"] = android_ndk_path
+    os.environ["NDK_ROOT"] = android_ndk_path
     
     try:
         # Import after setting environment
