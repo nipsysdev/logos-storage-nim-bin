@@ -14,7 +14,9 @@ def test_android_build():
     
     # Set environment variables for Android build
     os.environ["TARGET_PLATFORM"] = "android"
-    android_ndk_path = os.path.expanduser("~/Android/Sdk/ndk/29.0.14206865")
+    android_ndk_path = os.environ.get("ANDROID_NDK_ROOT") or os.environ.get("NDK_ROOT")
+    if not android_ndk_path:
+        android_ndk_path = os.path.expanduser("~/Android/Sdk/ndk/29.0.14206865")  # fallback
     os.environ["ANDROID_NDK_ROOT"] = android_ndk_path
     os.environ["NDK_ROOT"] = android_ndk_path
     
