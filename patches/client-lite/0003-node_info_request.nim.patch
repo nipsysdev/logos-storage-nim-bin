@@ -1,0 +1,14 @@
+diff --git a/library/storage_thread_requests/requests/node_info_request.nim b/library/storage_thread_requests/requests/node_info_request.nim
+index 7e755a3a..60398eef 100644
+--- a/library/storage_thread_requests/requests/node_info_request.nim
++++ b/library/storage_thread_requests/requests/node_info_request.nim
+@@ -6,7 +6,8 @@ import chronicles
+ import confutils
+ import codexdht/discv5/spr
+ import ../../../storage/conf
+-import ../../../storage/rest/json
++when not defined(CLIENT_LITE):
++  import ../../../storage/rest/json
+ import ../../../storage/node
+ 
+ from ../../../storage/storage import StorageServer, config, node

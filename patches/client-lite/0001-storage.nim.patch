@@ -1,0 +1,143 @@
+# PATCH_WORKING_DIR: .
+diff --git a/storage/storage.nim b/storage/storage.nim
+index 16a2cb20..6b9de8f9 100644
+--- a/storage/storage.nim
++++ b/storage/storage.nim
+@@ -21,13 +21,15 @@ import pkg/libp2p
+ import pkg/confutils
+ import pkg/confutils/defs
+ import pkg/stew/io2
+-import pkg/datastore
++when defined(CLIENT_LITE):
++  import pkg/datastore/sql
+ import pkg/stew/io2
+ 
+ import ./node
+ import ./conf
+ import ./rng as random
+-import ./rest/api
++when not defined(CLIENT_LITE):
++  import ./rest/api
+ import ./stores
+ import ./blockexchange
+ import ./utils/fileutils
+@@ -45,7 +47,10 @@ logScope:
+ type
+   StorageServer* = ref object
+     config: StorageConf
+-    restServer: RestServerRef
++    when defined(CLIENT_LITE):
++      restServer: ref object  # Dummy type for client-lite
++    else:
++      restServer: RestServerRef
+     storageNode: StorageNodeRef
+     repoStore: RepoStore
+     maintenance: BlockMaintainer
+@@ -181,7 +186,10 @@ proc new*(
+     )
+ 
+   let providersPath = config.dataDir / StorageDhtProvidersNamespace
+-  let discoveryStoreRes = LevelDbDatastore.new(providersPath)
++  when defined(CLIENT_LITE):
++    let discoveryStoreRes = SQLiteDatastore.new(providersPath / "discovery.db")
++  else:
++    let discoveryStoreRes = LevelDbDatastore.new(providersPath)
+   if discoveryStoreRes.isErr:
+     error "Failed to initialize discovery datastore",
+       path = providersPath, err = discoveryStoreRes.error.msg
+@@ -200,32 +208,44 @@ proc new*(
+ 
+     network = BlockExcNetwork.new(switch)
+ 
+-    repoData =
+-      case config.repoKind
+-      of repoFS:
+-        Datastore(
+-          FSDatastore.new($config.dataDir, depth = 5).expect(
+-            "Should create repo file data store!"
+-          )
+-        )
+-      of repoSQLite:
+-        Datastore(
+-          SQLiteDatastore.new($config.dataDir).expect(
+-            "Should create repo SQLite data store!"
++    when defined(CLIENT_LITE):
++      repoData = Datastore(
++        SQLiteDatastore.new($config.dataDir).expect(
++          "Should create repo SQLite data store!"
++         )
++      )
++    else:
++      repoData =
++        case config.repoKind
++        of repoFS:
++          Datastore(
++            FSDatastore.new($config.dataDir, depth = 5).expect(
++              "Should create repo file data store!"
++            )
++           )
++        of repoSQLite:
++          Datastore(
++            SQLiteDatastore.new($config.dataDir).expect(
++              "Should create repo SQLite data store!"
++            )
+           )
+-        )
+-      of repoLevelDb:
+-        Datastore(
+-          LevelDbDatastore.new($config.dataDir).expect(
+-            "Should create repo LevelDB data store!"
++        of repoLevelDb:
++          Datastore(
++            LevelDbDatastore.new($config.dataDir).expect(
++              "Should create repo LevelDB data store!"
++            )
+           )
+-        )
+ 
+     repoStore = RepoStore.new(
+       repoDs = repoData,
+-      metaDs = LevelDbDatastore.new(config.dataDir / StorageMetaNamespace).expect(
+-          "Should create metadata store!"
+-        ),
++      when defined(CLIENT_LITE):
++        metaDs = SQLiteDatastore.new((config.dataDir / StorageMetaNamespace) & ".db").expect(
++            "Should create metadata store!"
++          )
++      else:
++        metaDs = LevelDbDatastore.new(config.dataDir / StorageMetaNamespace).expect(
++            "Should create metadata store!"
++          ),
+       quotaMaxBytes = config.storageQuota,
+       blockTtl = config.blockTtl,
+     )
+@@ -256,17 +276,19 @@ proc new*(
+ 
+   var restServer: RestServerRef = nil
+ 
+-  if config.apiBindAddress.isSome:
+-    restServer = RestServerRef
+-      .new(
+-        storageNode.initRestApi(config, repoStore, config.apiCorsAllowedOrigin),
+-        initTAddress(config.apiBindAddress.get(), config.apiPort),
+-        bufferSize = (1024 * 64),
+-        maxRequestBodySize = int.high,
+-      )
+-      .expect("Should create rest server!")
++  when not defined(CLIENT_LITE):
++    if config.apiBindAddress.isSome:
++      restServer = RestServerRef
++        .new(
++          storageNode.initRestApi(config, repoStore, config.apiCorsAllowedOrigin),
++          initTAddress(config.apiBindAddress.get(), config.apiPort),
++          bufferSize = (1024 * 64),
++          maxRequestBodySize = int.high,
++        )
++        .expect("Should create rest server!")
+ 
+-  switch.mount(network)
++  when not defined(CLIENT_LITE):
++    switch.mount(network)
+ 
+   StorageServer(
+     config: config,

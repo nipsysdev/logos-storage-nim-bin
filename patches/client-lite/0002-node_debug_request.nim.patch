@@ -1,0 +1,15 @@
+# PATCH_WORKING_DIR: .
+diff --git a/library/storage_thread_requests/requests/node_debug_request.nim b/library/storage_thread_requests/requests/node_debug_request.nim
+index 8bf3106c..b0f85a6c 100644
+--- a/library/storage_thread_requests/requests/node_debug_request.nim
++++ b/library/storage_thread_requests/requests/node_debug_request.nim
+@@ -11,7 +11,8 @@ import chronicles
+ import codexdht/discv5/spr
+ import ../../alloc
+ import ../../../storage/conf
+-import ../../../storage/rest/json
++when not defined(CLIENT_LITE):
++  import ../../../storage/rest/json
+ import ../../../storage/node
+ 
+ from ../../../storage/storage import StorageServer, node
