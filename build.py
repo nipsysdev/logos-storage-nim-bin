@@ -78,8 +78,11 @@ def main() -> None:
     else:
         logos_storage_dir, commit_info = ensure_logos_storage_repo(branch, commit)
     
-    # Always reset repository to clean state before building
-    reset_repository(logos_storage_dir)
+    # Reset repository to clean state before building (can be skipped with SKIP_REPO_RESET)
+    if not os.environ.get("SKIP_REPO_RESET"):
+        reset_repository(logos_storage_dir)
+    else:
+        print("Skipping repository reset (SKIP_REPO_RESET is set)")
 
     print(f"Commit: {commit_info.commit} ({commit_info.commit_short})")
     print(f"Branch: {commit_info.branch}")

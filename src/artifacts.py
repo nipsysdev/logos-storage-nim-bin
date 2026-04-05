@@ -136,11 +136,8 @@ def build_libstorage_android(logos_storage_dir: Path, jobs: int, patch_dir: Path
     print(f"Android NDK root: {android_env['CC'].split('/bin')[0]}/..")
     print(f"Host triple: {android_env['HOST_TRIPLE']}")
     
-    # Apply client-lite patches first
-    from src.repository import apply_patches
-    apply_patches(logos_storage_dir, patch_dir)
-    
-    # Initialize submodules directly (skip bundled Nim build)
+    # Initialize submodules first (before applying patches)
+    print("Initializing Android git submodules...")
     print("Initializing Android git submodules...")
     try:
         # Initialize and update submodules manually to avoid bundled Nim build
@@ -156,6 +153,10 @@ def build_libstorage_android(logos_storage_dir: Path, jobs: int, patch_dir: Path
         if e.stderr:
             print(f"STDERR:\n{e.stderr}")
         raise
+    
+    # Apply client-lite patches after submodules are initialized
+    from src.repository import apply_patches
+    apply_patches(logos_storage_dir, patch_dir)
     
     # Build with parallel jobs and Android environment
     print(f"Building Android libstorage with {jobs} parallel jobs...")

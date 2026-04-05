@@ -149,8 +149,14 @@ def configure_android_environment() -> dict:
         cxx_path = ndk_alt / "bin/aarch64-linux-android21-clang++"
         ar_path = ndk_alt / "bin/llvm-ar"
     
-    # Add nim to PATH
-    nim_paths = ["/home/lowkey/.nimble/bin", "/home/lowkey/.choosenim/toolchains/nim-2.2.8/bin"]
+    # Add nim to PATH - use environment variables or sensible defaults
+    nimble_bin = os.environ.get("NIMBLE_BIN", os.path.expanduser("~/.nimble/bin"))
+    chosenim_toolchains = os.environ.get("CHOSENIM_TOOLCHAINS", os.path.expanduser("~/.choosenim/toolchains/nim-2.2.8/bin"))
+    nim_paths = [nimble_bin, chosenim_toolchains]
+    
+    # Filter out paths that don't exist
+    nim_paths = [path for path in nim_paths if Path(path).exists()]
+    
     path_separator = ":"
     current_path = os.environ.get("PATH", "")
     new_path = path_separator.join(nim_paths + [current_path])
