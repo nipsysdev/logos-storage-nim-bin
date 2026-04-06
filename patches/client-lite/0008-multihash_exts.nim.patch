@@ -1,0 +1,14 @@
+# PATCH_WORKING_DIR: .
+diff --git a/storage/multihash_exts.nim b/storage/multihash_exts.nim
+index ed57c541..9656c34b 100644
+--- a/storage/multihash_exts.nim
++++ b/storage/multihash_exts.nim
+@@ -10,7 +10,7 @@ proc sha2_256hash_constantine(data: openArray[byte], output: var openArray[byte]
+ 
+ const Sha2256MultiHash* = MHash(
+   mcodec: multiCodec("sha2-256"),
+-  size: sha256.sizeDigest,
++  size: hashes.sha256.digestSize,
+   coder: sha2_256hash_constantine,
+ )
+ const HashExts = [

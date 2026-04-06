@@ -1,0 +1,20 @@
+# PATCH_WORKING_DIR: vendor/nim-libp2p
+diff --git a/libp2p/protocols/rendezvous/rendezvous.nim b/libp2p/protocols/rendezvous/rendezvous.nim
+index 436f63508..1221a60c4 100644
+--- a/libp2p/protocols/rendezvous/rendezvous.nim
++++ b/libp2p/protocols/rendezvous/rendezvous.nim
+@@ -326,10 +326,10 @@ proc advertise*[E](
+ 
+   rdv.save(ns, rdv.switch.peerInfo.peerId, r)
+ 
+-  let futs = collect(newSeq()):
+-    for peer in peers:
+-      trace "Send Advertise", peerId = peer, ns
+-      rdv.advertisePeer(peer, msg.buffer).withTimeout(5.seconds)
++  var futs = newSeq[Future[void]]()
++for peer in peers:
++  trace "Send Advertise", peerId = peer, ns
++  futs.add(rdv.advertisePeer(peer, msg.buffer).withTimeout(5.seconds))
+ 
+   await allFutures(futs)
+ 
