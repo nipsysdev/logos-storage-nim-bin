@@ -27,13 +27,13 @@ deps-android: init-submodules $(ANDROID_DEPS)
 # Initialize essential git submodules for CLIENT_LITE
 init-submodules:
 	@echo "Initializing ALL git submodules for Android CLIENT_LITE..."
-	+ cd ../logos-storage-nim && git submodule update --init --recursive
+	+ cd logos-storage-nim && git submodule update --init --recursive
 	@echo "✓ All submodules initialized for Android CLIENT_LITE"
 
 # Build NAT traversal for Android
 libnatpmp.a:
 	@echo "Building libnatpmp for Android ARM64..."
-	cd ../logos-storage-nim/vendor/nim-nat-traversal/vendor/libnatpmp-upstream && \
+	cd logos-storage-nim/vendor/nim-nat-traversal/vendor/libnatpmp-upstream && \
 	CC=$(CC) AR=$(AR) CFLAGS="$(CFLAGS)" \
 	make libnatpmp.a
 	@echo "✓ libnatpmp.a built for Android"
@@ -53,7 +53,8 @@ libstorage-androidlite: deps-android
 	export AR=$(AR) && \
 	export NIM_PARAMS="-d:CLIENT_LITE -d:disable_libbacktrace" && \
 	export LIBSTORAGE_PARAMS="-d:CLIENT_LITE -d:disable_libbacktrace" && \
-	cd ../logos-storage-nim && nim c \
+	export PATH="$(HOME)/.nimble/bin:$(HOME)/.choosenim/toolchains/nim-2.2.8/bin:$$PATH" && \
+	cd logos-storage-nim && nim c \
 		--cpu:arm64 \
 		--os:android \
 		--cc:clang \
@@ -112,6 +113,6 @@ libstorage-androidlite: deps-android
 # Clean Android build artifacts
 clean-android:
 	@echo "Cleaning Android CLIENT_LITE build artifacts..."
-	rm -f ../logos-storage-nim/build/libstorage.a
-	cd ../logos-storage-nim/vendor/nim-nat-traversal/vendor/libnatpmp-upstream && make clean || true
+	rm -f logos-storage-nim/build/libstorage.a
+	cd logos-storage-nim/vendor/nim-nat-traversal/vendor/libnatpmp-upstream && make clean || true
 	@echo "✓ Android CLIENT_LITE cleanup complete"
