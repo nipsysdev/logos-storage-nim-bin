@@ -9,6 +9,7 @@ This script orchestrates the entire build process:
 """
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -83,9 +84,13 @@ def main() -> None:
         try:
             reset_repository(logos_storage_dir)
             print("✓ Repository reset complete")
-        except Exception as e:
+        except (subprocess.CalledProcessError, OSError) as e:
             print(f"Warning: Failed to reset repository: {e}")
             print("Continuing with potentially dirty state...")
+        except Exception as e:
+            print(f"Unexpected error during repository reset: {e}")
+            print("This may indicate a serious issue - consider running with SKIP_REPO_RESET=1")
+            raise
     else:
         print("Skipping repository reset (SKIP_REPO_RESET is set)")
 

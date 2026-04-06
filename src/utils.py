@@ -147,7 +147,7 @@ def configure_android_environment() -> dict:
     
     # Add nim to PATH - use environment variables or sensible defaults
     nimble_bin = os.environ.get("NIMBLE_BIN", os.path.expanduser("~/.nimble/bin"))
-    chosenim_toolchains = os.environ.get("CHOSENIM_TOOLCHAINS", os.path.expanduser("~/.choosenim/toolchains/nim-2.2.8/bin"))
+    chosenim_toolchains = os.environ.get("CHOSENIM_TOOLCHAINS", os.path.expanduser("~/.choosenim/toolchains/nim-2.0.2/bin"))
     nim_paths = [nimble_bin, chosenim_toolchains]
     
     # Filter out paths that don't exist
