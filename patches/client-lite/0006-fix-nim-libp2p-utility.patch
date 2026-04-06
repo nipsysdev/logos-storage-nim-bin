@@ -1,0 +1,14 @@
+# PATCH_WORKING_DIR: vendor/nim-libp2p
+diff --git a/libp2p/utility.nim b/libp2p/utility.nim
+index a6457bda7..2cdfc692b 100644
+--- a/libp2p/utility.nim
++++ b/libp2p/utility.nim
+@@ -148,7 +148,7 @@ macro includeFile*(file: static[string]): untyped =
+   let res = newStmtList()
+ 
+   try:
+-    res.add(nnkIncludeStmt.newTree(newLit(file)))
++    discard res.add(nnkIncludeStmt.newTree(newLit(file)))
+   except ValueError as e:
+     raiseAssert("Failed to include file: " & file & ", error: " & e.msg)
+ 
