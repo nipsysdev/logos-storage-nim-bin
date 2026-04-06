@@ -51,7 +51,7 @@ libstorage-androidlite: deps-android
 	export CC=$(CC) && \
 	export CXX=$(CXX) && \
 	export AR=$(AR) && \
-	export NIM_PARAMS="-d:CLIENT_LITE -d:disable_libbacktrace" && \
+	export NIM_PARAMS="-d:CLIENT_LITE -d:disable_libbacktrace -d:resultsGenericsOpenSym" && \
 	export LIBSTORAGE_PARAMS="-d:CLIENT_LITE -d:disable_libbacktrace" && \
 	export PATH="$(HOME)/.nimble/bin:$(HOME)/.choosenim/toolchains/nim-2.2.8/bin:$$PATH" && \
 	cd logos-storage-nim && nim c \
