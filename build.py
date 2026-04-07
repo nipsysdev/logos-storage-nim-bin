@@ -113,9 +113,13 @@ def main() -> None:
     else:
         print("Skipping repository reset (SKIP_REPO_RESET is set)")
     
+    # Apply patches for Android builds immediately after repository reset
     if is_android_build():
         # Android build - use client-lite patches
         patch_dir = Path("patches")
+        print("Applying client-lite patches for Android build...")
+        from src.repository import apply_patches
+        apply_patches(logos_storage_dir, patch_dir)
         build_libstorage_android(logos_storage_dir, jobs, patch_dir)
     else:
         # Desktop build - full library

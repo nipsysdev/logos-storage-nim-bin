@@ -1,6 +1,5 @@
-# PATCH_WORKING_DIR: .
 diff --git a/library/storage_thread_requests/requests/node_debug_request.nim b/library/storage_thread_requests/requests/node_debug_request.nim
-index 8bf3106c..b0f85a6c 100644
+index 8bf3106c..71f599cf 100644
 --- a/library/storage_thread_requests/requests/node_debug_request.nim
 +++ b/library/storage_thread_requests/requests/node_debug_request.nim
 @@ -11,7 +11,8 @@ import chronicles
@@ -13,3 +12,61 @@ index 8bf3106c..b0f85a6c 100644
  import ../../../storage/node
  
  from ../../../storage/storage import StorageServer, node
+@@ -46,22 +47,23 @@ proc destroyShared(self: ptr NodeDebugRequest) =
+   deallocShared(self[].logLevel)
+   deallocShared(self)
+ 
+-proc getDebug(
+-    storage: ptr StorageServer
+-): Future[Result[string, string]] {.async: (raises: []).} =
+-  let node = storage[].node
+-  let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
++when not defined(CLIENT_LITE):
++  proc getDebug(
++      storage: ptr StorageServer
++  ): Future[Result[string, string]] {.async: (raises: []).} =
++    let node = storage[].node
++    let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
+ 
+-  let json = %*{
+-    "id": $node.switch.peerInfo.peerId,
+-    "addrs": node.switch.peerInfo.addrs.mapIt($it),
+-    "spr":
+-      if node.discovery.dhtRecord.isSome: node.discovery.dhtRecord.get.toURI else: "",
+-    "announceAddresses": node.discovery.announceAddrs,
+-    "table": table,
+-  }
++    let json = %*{
++      "id": $node.switch.peerInfo.peerId,
++      "addrs": node.switch.peerInfo.addrs.mapIt($it),
++      "spr":
++        if node.discovery.dhtRecord.isSome: node.discovery.dhtRecord.get.toURI else: "",
++      "announceAddresses": node.discovery.announceAddrs,
++      "table": table,
++    }
+ 
+-  return ok($json)
++    return ok($json)
+ 
+ proc getPeer(
+     storage: ptr StorageServer, peerId: cstring
+@@ -106,11 +108,14 @@ proc process*(
+ 
+   case self.operation
+   of NodeDebugMsgType.DEBUG:
+-    let res = (await getDebug(storage))
+-    if res.isErr:
+-      error "Failed to get DEBUG.", error = res.error
+-      return err($res.error)
+-    return res
++    when not defined(CLIENT_LITE):
++      let res = (await getDebug(storage))
++      if res.isErr:
++        error "Failed to get DEBUG.", error = res.error
++        return err($res.error)
++      return res
++    else:
++      return err("Debug functionality not available in CLIENT_LITE mode")
+   of NodeDebugMsgType.PEER:
+     let res = (await getPeer(storage, self.peerId))
+     if res.isErr:

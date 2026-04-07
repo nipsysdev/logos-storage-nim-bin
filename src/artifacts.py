@@ -151,9 +151,9 @@ def build_libstorage_android(logos_storage_dir: Path, jobs: int, patch_dir: Path
     # Initialize submodules first (before applying patches)
     print("Initializing Android git submodules...")
     try:
-        # Initialize and update submodules manually to avoid bundled Nim build
+        # Use Makefile target for Android dependencies
         run_command([
-            "git", "-C", str(logos_storage_dir), "submodule", "update", "--init", "--recursive"
+            "make", "-C", str(logos_storage_dir), "deps-android"
         ], env=android_env)
     except subprocess.CalledProcessError as e:
         print(f"Error: Failed to initialize git submodules for Android")
@@ -165,26 +165,9 @@ def build_libstorage_android(logos_storage_dir: Path, jobs: int, patch_dir: Path
             print(f"STDERR:\n{e.stderr}")
         raise
     
-    # Apply client-lite patches after submodules are initialized
-    from src.repository import apply_patches
-    apply_patches(logos_storage_dir, patch_dir)
-    
     # Build with parallel jobs and Android environment
     print(f"Building Android libstorage with {jobs} parallel jobs...")
-    # Use system Nim (not bundled) for Android compatibility
-    # CLIENT_LITE is already in android_env but also need it as LIBSTORAGE_PARAMS
-    print("Setting LIBSTORAGE_PARAMS to include CLIENT_LITE flag...")
-    android_env["LIBSTORAGE_PARAMS"] = "-d:CLIENT_LITE"
     
-    # Also pass as NIM_PARAMS to ensure it reaches Nim
-    if "NIM_PARAMS" in android_env:
-        android_env["NIM_PARAMS"] += " -d:CLIENT_LITE"
-    else:
-        android_env["NIM_PARAMS"] = "-d:CLIENT_LITE"
-    
-    # Ensure PATH includes Nim binaries
-    print(f"Android PATH: {android_env.get('PATH', 'not set')}")
-        
     # Clean Nim cache to avoid compilation issues with patched files
     print("Cleaning Nim cache files...")
     build_dir = logos_storage_dir / "build"
@@ -199,41 +182,35 @@ def build_libstorage_android(logos_storage_dir: Path, jobs: int, patch_dir: Path
     except:
         pass  # Ignore errors if find command fails
     
-    # For Android, use build.nims instead of Makefile for better cross-compilation support
-    print("Building with Android build.nims (SQLite-only, no REST API)...")
-    
-    # Set up Android environment for build.nims
+    # Set up Android environment for Makefile
     android_env["ANDROID"] = "1"
-    android_env["TARGET_ARCH"] = android_env.get("HOST_TRIPLE", "").split("-")[0]  # Extract arch from host triple
     
-    # Configure Android-specific defines for build.nims
-    android_defines = "-d:android -d:CLIENT_LITE -d:disable_libbacktrace -d:resultsGenericsOpenSym"
+    # Set architecture-specific flags for Makefile
     if "arm64" in android_env.get("HOST_TRIPLE", ""):
-        android_defines += " -d:arm64"
         android_env["ANDROID_ARM64_BUILD"] = "1"
     elif "x86_64" in android_env.get("HOST_TRIPLE", ""):
-        android_defines += " -d:x86_64"
         android_env["ANDROID_X86_64_BUILD"] = "1"
     
-    # Disable x86 intrinsics for Android
-    android_defines += " -d:noIntrinsicsBitOpts -d:NO_X86_INTRINSICS -d:__NO_INLINE_ASM__ -d:noX86 -d:noSSE -d:noAVX -d:noAVX2 -d:noAVX512 -d:noX86Intrinsics -d:noSimd -d:noInlineAsm"
-    
-    # Let config.nims handle chronicles configuration with chronicles_colors=NoColors
-    
-    android_env["CODEX_ANDROID_DEFINES"] = android_defines
-    android_env["NO_X86_INTRINSICS"] = "1"
-    android_env["BR_NO_X86_INTRINSICS"] = "1"
-    android_env["BR_NO_X86"] = "1"
-    android_env["BR_NO_ASM"] = "1"
+    # Add vendor directory to Nim path so chronicles can be found
+    vendor_path = logos_storage_dir / "vendor"
+    if vendor_path.exists():
+        # Set NIM_PATH to include vendor directory for module resolution
+        existing_nim_path = android_env.get("NIM_PATH", "")
+        if existing_nim_path:
+            android_env["NIM_PATH"] = f"{str(vendor_path)}:{existing_nim_path}"
+        else:
+            android_env["NIM_PATH"] = str(vendor_path)
+        
+        print(f"Added vendor directory to Nim path: {vendor_path}")
     
     try:
-        # Build using build.nims with Android configuration
-        print("Running Android build with build.nims...")
+        # Build using Makefile target for Android
+        print("Running Android build with Makefile...")
         run_command([
-            "nim", "-d:android", "libstorageStatic"
-        ], cwd=logos_storage_dir, env=android_env)
+            "make", "-C", str(logos_storage_dir), "libstorage-android"
+        ], env=android_env)
     except subprocess.CalledProcessError as e:
-        print(f"Error: Failed to build Android libstorage with build.nims")
+        print(f"Error: Failed to build Android libstorage with Makefile")
         if hasattr(e, 'cmd'):
             print(f"Command: {' '.join(e.cmd)}")
         print(f"Exit code: {e.returncode}")
@@ -247,7 +224,7 @@ def build_libstorage_android(logos_storage_dir: Path, jobs: int, patch_dir: Path
         print(f"Working directory: {logos_storage_dir}")
         print(f"Environment variables:")
         for key, value in android_env.items():
-            if key in ['CC', 'CXX', 'AR', 'HOST_TRIPLE', 'CLIENT_LITE', 'ANDROID', 'TARGET_ARCH', 'CODEX_ANDROID_DEFINES']:
+            if key in ['CC', 'CXX', 'AR', 'HOST_TRIPLE', 'CLIENT_LITE', 'ANDROID', 'TARGET_ARCH', 'ANDROID_DEFINES']:
                 print(f"  {key}={value}")
         
         raise

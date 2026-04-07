@@ -1,5 +1,5 @@
 diff --git a/config.nims b/config.nims
-index dd912d06..e08bd5db 100644
+index dd912d06..630d031e 100644
 --- a/config.nims
 +++ b/config.nims
 @@ -47,7 +47,48 @@ when defined(windows):
@@ -18,8 +18,8 @@ index dd912d06..e08bd5db 100644
 +  switch("define", "noInlineAsm")
 +
 +  # Set Android cross-compiler
-+  let android_cc = getEnv("CODEX_ANDROID_CC", "aarch64-linux-android21-clang")
-+  let android_ar = getEnv("CODEX_ANDROID_AR", "llvm-ar")
++  let android_cc = getEnv("ANDROID_CC", "aarch64-linux-android21-clang")
++  let android_ar = getEnv("ANDROID_AR", "llvm-ar")
 +
 +  switch("cc", "clang")
 +  switch("clang.exe", android_cc)
@@ -52,3 +52,13 @@ index dd912d06..e08bd5db 100644
  # requires quite roundabout code generation for cryptography, and other 64-bit
  # and larger arithmetic use cases, along with register starvation issues. When
  # engineering a more portable binary release, this should be tweaked but still
+@@ -66,7 +107,8 @@ else:
+     # ("-fno-asynchronous-unwind-tables" breaks Nim's exception raising, sometimes)
+     switch("passC", "-march=x86-64")
+   else:
+-    switch("passC", "-march=native")
++    when not defined(android):
++      switch("passC", "-march=native")
+ 
+ --tlsEmulation:
+   off

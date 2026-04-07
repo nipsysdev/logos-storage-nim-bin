@@ -1,0 +1,83 @@
+diff --git a/Makefile b/Makefile
+index 2046e2bf..4e15edfa 100644
+--- a/Makefile
++++ b/Makefile
+@@ -73,6 +73,25 @@ else ifeq ($(DEBUG),0)
+ 	LIBSTORAGE_PARAMS := $(LIBSTORAGE_PARAMS) -d:LibstorageDisableRestApi=1
+ endif
+ 
++# Android-specific parameters
++ifeq ($(ANDROID),1)
++	LIBSTORAGE_PARAMS := $(LIBSTORAGE_PARAMS) -d:CLIENT_LITE
++	# Disable x86 intrinsics for Android builds
++	LIBSTORAGE_PARAMS := $(LIBSTORAGE_PARAMS) -d:noIntrinsicsBitOpts -d:NO_X86_INTRINSICS -d:__NO_INLINE_ASM__ -d:noX86Intrinsics -d:noSimd -d:noInlineAsm
++	# Android-specific defines
++	LIBSTORAGE_PARAMS := $(LIBSTORAGE_PARAMS) -d:android -d:disable_libbacktrace -d:resultsGenericsOpenSym
++	# Architecture-specific Android flags
++	ifeq ($(ANDROID_ARM64_BUILD),1)
++		LIBSTORAGE_PARAMS := $(LIBSTORAGE_PARAMS) -d:arm64
++		# Disable x86-64 assembly for secp256k1 on ARM64
++		CFLAGS += -DSECP256K1_NO_ASM
++		CPPFLAGS += -DSECP256K1_NO_ASM
++	endif
++	ifeq ($(ANDROID_X86_64_BUILD),1)
++		LIBSTORAGE_PARAMS := $(LIBSTORAGE_PARAMS) -d:x86_64
++	endif
++endif
++
+ # we don't want an error here, so we can handle things later, in the ".DEFAULT" target
+ -include $(BUILD_SYSTEM_DIR)/makefiles/variables.mk
+ 
+@@ -86,7 +105,10 @@ endif
+ 	testAll \
+ 	testIntegration \
+ 	testLibstorage \
+-	update
++	update \
++	libstorage-android \
++	deps-android \
++	clean-android
+ 
+ ifeq ($(NIM_PARAMS),)
+ # "variables.mk" was not included, so we update the submodules.
+@@ -125,6 +147,11 @@ ifneq ($(USE_LIBBACKTRACE), 0)
+ deps: | libbacktrace
+ endif
+ 
++# Android-specific dependencies (without building bundled Nim)
++deps-android:
++	@echo "Updating git submodules for Android build..."
++	git submodule update --init --recursive
++
+ update: | update-common
+ 
+ # detecting the os
+@@ -278,4 +305,28 @@ else
+ 		echo -e $(BUILD_MSG) "build/$@.so" && \
+ 		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) storage.nims
+ endif
++
++# Android-specific libstorage build
++libstorage-android:
++	$(MAKE) deps-android
++	rm -f build/libstorage*
++	@echo "Building libstorage for Android..."
++	@echo "Android NDK root: $(ANDROID_NDK_HOME)"
++	@echo "Target architecture: $(HOST_TRIPLE)"
++	
++	# Clean Nim cache to avoid compilation issues with patched files
++	rm -rf build
++	# Remove compiled Nim files that might cause caching issues
++	find . -name "*.nim.c" -delete 2>/dev/null || true
++	find . -name "*.nim.o" -delete 2>/dev/null || true
++	
++	# Set up Android environment for build.nims
++	@echo "Building with Android configuration..."
++	$(ENV_SCRIPT) nim -d:android libstorageStatic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) storage.nims
++
++# Android-specific clean target
++clean-android:
++	rm -rf build
++	find . -name "*.nim.c" -delete 2>/dev/null || true
++	find . -name "*.nim.o" -delete 2>/dev/null || true
+ endif # "variables.mk" was not included

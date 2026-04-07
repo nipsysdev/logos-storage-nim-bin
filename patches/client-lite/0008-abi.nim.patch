@@ -1,0 +1,14 @@
+# PATCH_WORKING_DIR: vendor/nim-secp256k1
+diff --git a/secp256k1/abi.nim b/secp256k1/abi.nim
+index 9bb5528..bf3902a 100644
+--- a/secp256k1/abi.nim
++++ b/secp256k1/abi.nim
+@@ -7,7 +7,7 @@ const
+   internalPath = vendorPath & "/secp256k1"
+   srcPath = internalPath & "/src"
+ 
+-when defined(amd64) and (defined(gcc) or defined(clang)):
++when defined(amd64) and (defined(gcc) or defined(clang)) and not defined(android):
+   const asmFlags = " -DUSE_ASM_X86_64"
+ else:
+   const asmFlags = ""

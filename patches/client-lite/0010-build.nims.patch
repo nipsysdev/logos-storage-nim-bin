@@ -1,11 +1,12 @@
 diff --git a/build.nims b/build.nims
-index b74a931f..49059531 100644
+index b74a931f..5a7c7b3b 100644
 --- a/build.nims
 +++ b/build.nims
-@@ -39,23 +39,105 @@ proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "dynamic")
+@@ -38,6 +38,60 @@ proc buildBinary(
+ proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "dynamic") =
    if not dirExists "build":
      mkDir "build"
- 
++  
 +  var extra_params = params
 +
 +  # Android-specific compiler flags
@@ -14,6 +15,11 @@ index b74a931f..49059531 100644
 +    let android_ndk = getEnv("ANDROID_NDK_HOME")
 +    let android_clang_version = getEnv("ANDROID_CLANG_VERSION")
 +    let target_arch = getEnv("TARGET_ARCH", "arm64")
++    
++    # Disable x86-64 assembly for secp256k1 on ARM64 builds
++    if target_arch == "arm64":
++      extra_params &= " --define:SECP256K1_NO_ASM"
++      extra_params &= " --define:USE_ASM_X86_64=0"
 +    let android_linker = android_ndk & "/toolchains/llvm/prebuilt/linux-x86_64/bin/ld.lld"
 +    let android_omp_lib = android_ndk & "/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/" & android_clang_version & "/lib/linux/" & target_arch
 +    let android_sysroot = android_ndk & "/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
@@ -25,12 +31,19 @@ index b74a931f..49059531 100644
 +    let android_crtbegin = android_lib_path21 & "/crtbegin_so.o"
 +    let android_crtend = android_lib_path21 & "/crtend_so.o"
 +
-+    # Convert architecture names for Nim compiler
-+    let nim_cpu = case target_arch:
-+      of "x86_64": "amd64"
-+      of "aarch64": "arm64"
-+      else: target_arch
++    # Convert x86_64 to amd64 for Nim compiler, but ensure ARM64 is correctly detected
++    let nim_cpu = if target_arch == "x86_64": "amd64"
++                  elif target_arch == "aarch64": "arm64"
++                  else: target_arch
 +    extra_params &= " --cpu:" & nim_cpu & " --os:android --cc:clang --clang.execlang=" & android_cc
++    
++    # Additional flags to prevent x86 intrinsics on ARM64 Android
++    if target_arch == "aarch64":
++      extra_params &= " --define:arm64 --define:noX86Intrinsics --define:noSimd --define:noInlineAsm"
++    # Add C compiler flags to prevent x86 intrinsics on ARM64
++    if target_arch == "aarch64":
++      extra_params &= " --passC:-D__ARM_ARCH --passC:-U__x86_64__ --passC:-U__i386__ --passC:-Uamd64 --passC:-D__aarch64__ --passC:-U__i686__"
++    
 +    extra_params &= " --passl:-fuse-ld=" & android_linker
 +    extra_params &= " --passl:-L" & android_omp_lib
 +    extra_params &= " --passl:-L" & android_clang_lib
@@ -47,91 +60,43 @@ index b74a931f..49059531 100644
 +    extra_params &= " --passl:-Wl,--allow-multiple-definition"
 +    extra_params &= " --passl:-Wl,--undefined-version"
 +    extra_params &= " --passl:--target=" & target_arch & "-linux-android21"
-+
+ 
    if `type` == "dynamic":
      let lib_name = (
-       when defined(windows): name & ".dll"
-       elif defined(macosx): name & ".dylib"
-       else: name & ".so"
-     )
-+    # Set Leopard CMake flags based on environment variables
-+    var leopard_cmake_flags = "-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release"
-+    when defined(android):
-+      if existsEnv("ANDROID_ARM64_BUILD"):
-+        leopard_cmake_flags &= " -DANDROID_ARM64_BUILD=1"
-+      if existsEnv("ANDROID_X86_64_BUILD"):
-+        leopard_cmake_flags &= " -DANDROID_X86_64_BUILD=1"
-+      if existsEnv("NO_X86_INTRINSICS"):
-+        leopard_cmake_flags &= " -DNO_X86_INTRINSICS=1"
-+
-+    var chronicles_flags = ""
-+    # Check if chronicles_disabled is in extra_params (passed from command line)
-+    # For Android, we disable chronicles completely to avoid compilation issues
-+    when defined(android):
-+      chronicles_flags = ""
-+    else:
-+      if not (extra_params.contains("chronicles_disabled")):
-+        chronicles_flags = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
-+    
-     exec "nim c" & " --out:build/" & lib_name &
-       " --threads:on --app:lib --opt:size --noMain --mm:refc --header --d:metrics " &
-       "--nimMainPrefix:libstorage -d:noSignalHandler " &
--      "-d:chronicles_runtime_filtering " & "-d:chronicles_log_level=TRACE " & params &
--      " " & srcDir & name & ".nim"
-+      "-d:LeopardExtraCompilerFlags=-fPIC " & chronicles_flags &
-+      " -d:LeopardCmakeFlags=\"" & leopard_cmake_flags & "\" " & extra_params & " " & srcDir & name & ".nim"
-   else:
-+    # Set Leopard CMake flags based on environment variables
-+    var leopard_cmake_flags = "-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release"
-+    when defined(android):
-+      if existsEnv("ANDROID_ARM64_BUILD"):
-+        leopard_cmake_flags &= " -DANDROID_ARM64_BUILD=1"
-+      if existsEnv("ANDROID_X86_64_BUILD"):
-+        leopard_cmake_flags &= " -DANDROID_X86_64_BUILD=1"
-+      if existsEnv("NO_X86_INTRINSICS"):
-+        leopard_cmake_flags &= " -DNO_X86_INTRINSICS=1"
-+
-+    var chronicles_flags = ""
-+    # Check if chronicles_disabled is in extra_params (passed from command line)
-+    # For Android, we disable chronicles completely to avoid compilation issues
-+    when defined(android):
-+      chronicles_flags = ""
-+    else:
-+      if not (extra_params.contains("chronicles_disabled")):
-+        chronicles_flags = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
-+    
-     exec "nim c" & " --out:build/" & name &
-       ".a --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --d:metrics " &
-       "--nimMainPrefix:libstorage -d:noSignalHandler " &
--      "-d:chronicles_runtime_filtering " & "-d:chronicles_log_level=TRACE " & params &
--      " " & srcDir & name & ".nim"
-+      "-d:LeopardExtraCompilerFlags=-fPIC " &
-+      chronicles_flags &
-+      " -d:LeopardCmakeFlags=\"" & leopard_cmake_flags & "\" " &
-+      extra_params & " " & srcDir & name & ".nim"
- 
- proc test(name: string, outName = name, srcDir = "tests/", params = "", lang = "c") =
-   buildBinary name, outName, srcDir, params
-@@ -146,6 +228,11 @@ task libstorageDynamic, "Generate bindings":
+@@ -146,6 +200,18 @@ task libstorageDynamic, "Generate bindings":
        if param.len > 0 and param.startsWith("-"):
          params.add " " & param
  
 +  # Android-specific parameters
 +  when defined(android):
-+    if existsEnv("CODEX_ANDROID_DEFINES"):
-+      params.add " " & getEnv("CODEX_ANDROID_DEFINES")
++    if existsEnv("ANDROID_DEFINES"):
++      params.add " " & getEnv("ANDROID_DEFINES")
++    
++    # Disable x86-64 assembly for secp256k1 on ARM64 builds
++    let android_target_arch = getEnv("TARGET_ARCH", "arm64")
++    if android_target_arch == "arm64":
++      params.add " --define:SECP256K1_NO_ASM"
++      params.add " --define:USE_ASM_X86_64=0"
++    
 +
    let name = "libstorage"
    buildLibrary name, "library/", params, "dynamic"
  
-@@ -156,5 +243,10 @@ task libstorageStatic, "Generate bindings":
+@@ -155,6 +221,17 @@ task libstorageStatic, "Generate bindings":
+     for param in commandLineParams():
        if param.len > 0 and param.startsWith("-"):
          params.add " " & param
- 
++  
 +  # Android-specific parameters
 +  when defined(android):
-+    if existsEnv("CODEX_ANDROID_DEFINES"):
-+      params.add " " & getEnv("CODEX_ANDROID_DEFINES")
-+
++    if existsEnv("ANDROID_DEFINES"):
++      params.add " " & getEnv("ANDROID_DEFINES")
++    
++    # Disable x86-64 assembly for secp256k1 on ARM64 builds
++    let android_target_arch = getEnv("TARGET_ARCH", "arm64")
++    if android_target_arch == "arm64":
++      params.add " --define:SECP256K1_NO_ASM"
++      params.add " --define:USE_ASM_X86_64=0"
+ 
    let name = "libstorage"
    buildLibrary name, "library/", params, "static"

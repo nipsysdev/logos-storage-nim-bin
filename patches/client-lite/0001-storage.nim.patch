@@ -1,6 +1,5 @@
-# PATCH_WORKING_DIR: .
 diff --git a/storage/storage.nim b/storage/storage.nim
-index 16a2cb20..6b9de8f9 100644
+index 16a2cb20..9664761f 100644
 --- a/storage/storage.nim
 +++ b/storage/storage.nim
 @@ -21,13 +21,15 @@ import pkg/libp2p
@@ -21,19 +20,64 @@ index 16a2cb20..6b9de8f9 100644
  import ./stores
  import ./blockexchange
  import ./utils/fileutils
-@@ -45,7 +47,10 @@ logScope:
+@@ -43,9 +45,14 @@ logScope:
+   topics = "storage node"
+ 
  type
++  DummyRestServer = ref object  # Dummy type for client-lite
++
    StorageServer* = ref object
      config: StorageConf
 -    restServer: RestServerRef
 +    when defined(CLIENT_LITE):
-+      restServer: ref object  # Dummy type for client-lite
++      restServer: DummyRestServer
 +    else:
 +      restServer: RestServerRef
      storageNode: StorageNodeRef
      repoStore: RepoStore
      maintenance: BlockMaintainer
-@@ -181,7 +186,10 @@ proc new*(
+@@ -84,8 +91,9 @@ proc start*(s: StorageServer) {.async.} =
+ 
+   await s.storageNode.start()
+ 
+-  if s.restServer != nil:
+-    s.restServer.start()
++  when not defined(CLIENT_LITE):
++    if s.restServer != nil:
++      s.restServer.start()
+ 
+   s.isStarted = true
+ 
+@@ -103,8 +111,9 @@ proc stop*(s: StorageServer) {.async.} =
+     s.maintenance.stop(),
+   ]
+ 
+-  if s.restServer != nil:
+-    futures.add(s.restServer.stop())
++  when not defined(CLIENT_LITE):
++    if s.restServer != nil:
++      futures.add(s.restServer.stop())
+ 
+   let res = await noCancel allFinishedFailed[void](futures)
+ 
+@@ -157,6 +166,16 @@ proc new*(
+   var
+     cache: CacheStore = nil
+     taskPool: Taskpool
++    repoData: Datastore
++    metaDs: Datastore
++    peerContextStore: PeerCtxStore
++    pendingBlocks: PendingBlocksManager
++    advertiser: Advertiser
++    blockDiscovery: DiscoveryEngine
++    engine: BlockExcEngine
++    store: NetworkStore
++    maintenance: BlockMaintainer
++    storageNode: StorageNodeRef
+ 
+   try:
+     if config.numThreads == ThreadCount(0):
+@@ -181,7 +200,10 @@ proc new*(
      )
  
    let providersPath = config.dataDir / StorageDhtProvidersNamespace
@@ -45,76 +89,90 @@ index 16a2cb20..6b9de8f9 100644
    if discoveryStoreRes.isErr:
      error "Failed to initialize discovery datastore",
        path = providersPath, err = discoveryStoreRes.error.msg
-@@ -200,32 +208,44 @@ proc new*(
+@@ -200,6 +222,13 @@ proc new*(
  
      network = BlockExcNetwork.new(switch)
  
--    repoData =
--      case config.repoKind
--      of repoFS:
--        Datastore(
--          FSDatastore.new($config.dataDir, depth = 5).expect(
--            "Should create repo file data store!"
--          )
++  when defined(CLIENT_LITE):
++    repoData = Datastore(
++      SQLiteDatastore.new($config.dataDir).expect(
++        "Should create repo SQLite data store!"
++       )
++    )
++  else:
+     repoData =
+       case config.repoKind
+       of repoFS:
+@@ -207,7 +236,7 @@ proc new*(
+           FSDatastore.new($config.dataDir, depth = 5).expect(
+             "Should create repo file data store!"
+           )
 -        )
--      of repoSQLite:
--        Datastore(
--          SQLiteDatastore.new($config.dataDir).expect(
--            "Should create repo SQLite data store!"
-+    when defined(CLIENT_LITE):
-+      repoData = Datastore(
-+        SQLiteDatastore.new($config.dataDir).expect(
-+          "Should create repo SQLite data store!"
 +         )
-+      )
-+    else:
-+      repoData =
-+        case config.repoKind
-+        of repoFS:
-+          Datastore(
-+            FSDatastore.new($config.dataDir, depth = 5).expect(
-+              "Should create repo file data store!"
-+            )
-+           )
-+        of repoSQLite:
-+          Datastore(
-+            SQLiteDatastore.new($config.dataDir).expect(
-+              "Should create repo SQLite data store!"
-+            )
+       of repoSQLite:
+         Datastore(
+           SQLiteDatastore.new($config.dataDir).expect(
+@@ -221,32 +250,39 @@ proc new*(
            )
--        )
--      of repoLevelDb:
--        Datastore(
--          LevelDbDatastore.new($config.dataDir).expect(
--            "Should create repo LevelDB data store!"
-+        of repoLevelDb:
-+          Datastore(
-+            LevelDbDatastore.new($config.dataDir).expect(
-+              "Should create repo LevelDB data store!"
-+            )
-           )
--        )
+         )
  
-     repoStore = RepoStore.new(
+-    repoStore = RepoStore.new(
++  when defined(CLIENT_LITE):
++    metaDs = SQLiteDatastore.new((config.dataDir / StorageMetaNamespace) & ".db").expect(
++        "Should create metadata store!"
++      )
++  else:
++    metaDs = LevelDbDatastore.new(config.dataDir / StorageMetaNamespace).expect(
++        "Should create metadata store!"
++      )
++
++  let repoStore = RepoStore.new(
        repoDs = repoData,
 -      metaDs = LevelDbDatastore.new(config.dataDir / StorageMetaNamespace).expect(
 -          "Should create metadata store!"
 -        ),
-+      when defined(CLIENT_LITE):
-+        metaDs = SQLiteDatastore.new((config.dataDir / StorageMetaNamespace) & ".db").expect(
-+            "Should create metadata store!"
-+          )
-+      else:
-+        metaDs = LevelDbDatastore.new(config.dataDir / StorageMetaNamespace).expect(
-+            "Should create metadata store!"
-+          ),
++      metaDs = metaDs,
        quotaMaxBytes = config.storageQuota,
        blockTtl = config.blockTtl,
      )
-@@ -256,17 +276,19 @@ proc new*(
  
-   var restServer: RestServerRef = nil
+-    maintenance = BlockMaintainer.new(
++  maintenance = BlockMaintainer.new(
+       repoStore,
+       interval = config.blockMaintenanceInterval,
+       numberOfBlocksPerInterval = config.blockMaintenanceNumberOfBlocks,
+     )
  
+-    peerStore = PeerCtxStore.new()
+-    pendingBlocks = PendingBlocksManager.new(retries = config.blockRetries)
+-    advertiser = Advertiser.new(repoStore, discovery)
+-    blockDiscovery =
+-      DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
+-    engine = BlockExcEngine.new(
+-      repoStore, network, blockDiscovery, advertiser, peerStore, pendingBlocks
+-    )
+-    store = NetworkStore.new(engine, repoStore)
++  peerContextStore = PeerCtxStore.new()
++  pendingBlocks = PendingBlocksManager.new(retries = config.blockRetries)
++  advertiser = Advertiser.new(repoStore, discovery)
++  blockDiscovery =
++    DiscoveryEngine.new(repoStore, peerContextStore, network, discovery, pendingBlocks)
++  engine = BlockExcEngine.new(
++    repoStore, network, blockDiscovery, advertiser, peerContextStore, pendingBlocks
++  )
++  store = NetworkStore.new(engine, repoStore)
+ 
+-    storageNode = StorageNodeRef.new(
++  storageNode = StorageNodeRef.new(
+       switch = switch,
+       networkStore = store,
+       engine = engine,
+@@ -254,19 +290,22 @@ proc new*(
+       taskPool = taskPool,
+     )
+ 
+-  var restServer: RestServerRef = nil
+-
 -  if config.apiBindAddress.isSome:
 -    restServer = RestServerRef
 -      .new(
@@ -124,7 +182,10 @@ index 16a2cb20..6b9de8f9 100644
 -        maxRequestBodySize = int.high,
 -      )
 -      .expect("Should create rest server!")
-+  when not defined(CLIENT_LITE):
++  when defined(CLIENT_LITE):
++    let restServer = DummyRestServer()
++  else:
++    var restServer: RestServerRef = nil
 +    if config.apiBindAddress.isSome:
 +      restServer = RestServerRef
 +        .new(

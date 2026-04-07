@@ -185,8 +185,8 @@ def configure_android_environment(logos_storage_dir: Path) -> dict:
         "ANDROID_NDK_HOME": ndk_root,
         "ANDROID_NDK_ROOT": ndk_root,
         "ANDROID_CLANG_VERSION": clang_version,
-        "CODEX_ANDROID_CC": str(cc_path),
-        "CODEX_ANDROID_AR": str(ar_path),
+        "ANDROID_CC": str(cc_path),
+        "ANDROID_AR": str(ar_path),
         "TARGET_ARCH": arch,
         
         # Architecture-specific flags
@@ -228,6 +228,50 @@ def is_android_build() -> bool:
     return get_target_platform() == "android"
 
 
+def apply_bitops_patch_for_android(logos_storage_dir: Path) -> None:
+    """Apply bitops.nim patch for Android builds to fix x86 intrinsics issue.
+    
+    This function applies the same fix that was used in the old storage-rust-bindings
+    project to prevent x86 intrinsics from being used on Android ARM64 builds.
+    
+    Args:
+        logos_storage_dir: Path to the logos-storage-nim repository
+    """
+    # Get the patch file path - use absolute path from workspace root
+    workspace_root = Path(__file__).parent.parent
+    patch_file = workspace_root / "patches" / "client-lite" / "0007-bitops.nim.patch"
+    
+    if not patch_file.exists():
+        print(f"Warning: bitops.nim patch not found at {patch_file}")
+        return
+    
+    # Change to the Nim directory before applying the patch
+    nim_dir = logos_storage_dir / "vendor/nimbus-build-system/vendor/Nim"
+    
+    try:
+        # Check if the patch is already applied by looking for the key change
+        bitops_file = nim_dir / "lib/pure/bitops.nim"
+        if bitops_file.exists():
+            content = bitops_file.read_text()
+            if "not defined(android) and not defined(arm64) and not defined(arm)" in content:
+                print("✓ bitops.nim Android patch already applied")
+                return
+        
+        # Apply the patch using git apply in the correct directory
+        result = run_command([
+            "git", "apply", str(patch_file)
+        ], cwd=nim_dir)
+        
+        if result.returncode == 0:
+            print("✓ Applied bitops.nim Android patch")
+        else:
+            print(f"✗ Failed to apply bitops.nim patch: {result.stderr}")
+            raise RuntimeError("Failed to apply bitops.nim patch for Android build")
+        
+    except Exception as e:
+        print(f"Warning: Failed to apply bitops.nim patch: {e}")
+
+
 def build_embedded_nim(logos_storage_dir: Path, jobs: int = None) -> Path:
     """Build embedded Nim using logos-storage-nim Makefile.
     
@@ -266,6 +310,12 @@ def build_embedded_nim(logos_storage_dir: Path, jobs: int = None) -> Path:
             print(f"Warning: git submodule update returned exit code {result.returncode}")
             print("Continuing anyway...")
         
+        # Apply bitops.nim patch early for Android builds to fix x86 intrinsics
+        # NOTE: This patch will be removed by build_nim.sh git reset, so we'll reapply it later
+        if os.environ.get("TARGET_PLATFORM") == "android":
+            print("Applying early bitops.nim patch for Android build...")
+            apply_bitops_patch_for_android(logos_storage_dir)
+        
         # Use the logos-storage-nim Makefile to build dependencies (including Nim)
         # The deps target will build the Nim compiler via the build-nim target
         # Use check=False to handle warnings/tips that don't indicate actual failure
@@ -275,26 +325,44 @@ def build_embedded_nim(logos_storage_dir: Path, jobs: int = None) -> Path:
         if jobs is None:
             jobs = get_parallel_jobs()
         
-        # Build with parallel jobs for faster compilation
-        make_cmd = ["make", "-C", str(logos_storage_dir), "-j", str(jobs), "deps"]
-        print(f"Running: {' '.join(make_cmd)}")
-        result = run_command(make_cmd, check=False)
+        # For Android builds, we need to handle the fact that build_nim.sh does git reset
+        # which removes our patch. We'll use a retry approach.
+        build_attempts = 0
+        max_attempts = 2
         
-        # Check if the build actually succeeded despite the exit code
-        if nim_binary.exists():
-            print(f"✓ Embedded Nim built successfully at {nim_binary}")
-            return nim_binary
-        elif result.returncode == 0:
-            # Build completed successfully but binary not found
-            raise RuntimeError("Nim build completed successfully but binary not found at expected location")
-        else:
-            # Build failed with non-zero exit code and binary doesn't exist
-            error_msg = f"Nim build failed with exit code {result.returncode}"
-            if result.stdout:
-                error_msg += f"\nSTDOUT:\n{result.stdout}"
-            if result.stderr:
-                error_msg += f"\nSTDERR:\n{result.stderr}"
-            raise RuntimeError(error_msg)
+        while build_attempts < max_attempts:
+            build_attempts += 1
+            
+            # For Android builds on retry attempts, re-apply the patch
+            if os.environ.get("TARGET_PLATFORM") == "android" and build_attempts > 1:
+                print(f"Attempt {build_attempts}: Re-applying bitops.nim patch for Android build...")
+                apply_bitops_patch_for_android(logos_storage_dir)
+            
+            # Build with parallel jobs for faster compilation
+            make_cmd = ["make", "-C", str(logos_storage_dir), "-j", str(jobs), "deps"]
+            print(f"Running: {' '.join(make_cmd)} (attempt {build_attempts})")
+            result = run_command(make_cmd, check=False)
+            
+            # Check if the build actually succeeded despite the exit code
+            if nim_binary.exists():
+                print(f"✓ Embedded Nim built successfully at {nim_binary}")
+                return nim_binary
+            elif result.returncode == 0:
+                # Build completed successfully but binary not found
+                raise RuntimeError("Nim build completed successfully but binary not found at expected location")
+            else:
+                # Build failed - for Android, try applying the patch and retry
+                if os.environ.get("TARGET_PLATFORM") == "android" and build_attempts < max_attempts:
+                    print(f"Build failed on attempt {build_attempts}, will retry with patch...")
+                    continue
+                else:
+                    # Build failed with non-zero exit code and binary doesn't exist
+                    error_msg = f"Nim build failed with exit code {result.returncode} after {build_attempts} attempts"
+                    if result.stdout:
+                        error_msg += f"\nSTDOUT:\n{result.stdout}"
+                    if result.stderr:
+                        error_msg += f"\nSTDERR:\n{result.stderr}"
+                    raise RuntimeError(error_msg)
         
     except Exception as e:
         if not isinstance(e, RuntimeError):

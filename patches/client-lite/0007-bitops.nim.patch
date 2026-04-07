@@ -1,0 +1,60 @@
+# PATCH_WORKING_DIR: vendor/nimbus-build-system/vendor/Nim
+diff --git a/lib/pure/bitops.nim b/lib/pure/bitops.nim
+index 0d3351ee5..ffd482bd8 100644
+--- a/lib/pure/bitops.nim
++++ b/lib/pure/bitops.nim
+@@ -416,7 +416,8 @@ import system/countbits_impl
+ 
+ const useBuiltinsRotate = (defined(amd64) or defined(i386)) and
+                           (defined(gcc) or defined(clang) or defined(vcc) or
+-                           (defined(icl) and not defined(cpp))) and useBuiltins
++                           (defined(icl) and not defined(cpp))) and useBuiltins and
++                        not defined(android) and not defined(arm64) and not defined(arm)
+ 
+ template parityImpl[T](value: T): int =
+   # formula id from: https://graphics.stanford.edu/%7Eseander/bithacks.html#ParityParallel
+@@ -467,7 +468,7 @@ elif useVCC_builtins:
+     discard fnc(index.addr, v)
+     index.int
+ 
+-elif useICC_builtins:
++elif useICC_builtins and not defined(android) and not defined(arm64) and not defined(arm):
+   # Returns the number of trailing 0-bits in x, starting at the least significant bit position. If x is 0, the result is undefined.
+   func bitScanForward(p: ptr uint32, b: uint32): uint8 {.
+       importc: "_BitScanForward", header: "<immintrin.h>".}
+@@ -657,7 +658,7 @@ func countTrailingZeroBits*(x: SomeInteger): int {.inline.} =
+       result = firstSetBit(x) - 1
+ 
+ when useBuiltinsRotate:
+-  when defined(gcc):
++  when defined(gcc) and not defined(android) and not defined(arm64) and not defined(arm):
+     # GCC was tested until version 4.8.1 and intrinsics were present. Not tested
+     # in previous versions.
+     func builtin_rotl8(value: uint8, shift: cint): uint8
+@@ -679,7 +680,7 @@ when useBuiltinsRotate:
+     when defined(amd64):
+       func builtin_rotr64(value: culonglong, shift: cint): culonglong
+                          {.importc: "__rorq", header: "<x86intrin.h>".}
+-  elif defined(clang):
++  elif defined(clang) and not defined(android) and not defined(arm64) and not defined(arm):
+     # In CLANG, builtins have been present since version 8.0.0 and intrinsics
+     # since version 9.0.0. This implementation chose the builtins, as they have
+     # been around for longer.
+@@ -706,7 +707,7 @@ when useBuiltinsRotate:
+       # shift is unsigned, refs https://github.com/llvm-mirror/clang/commit/892de415b7fde609dafc4e6c1643b7eaa0150a4d
+       func builtin_rotr64(value: culonglong, shift: culonglong): culonglong
+                          {.importc: "__builtin_rotateright64", nodecl.}
+-  elif defined(vcc):
++  elif defined(vcc) and not defined(android) and not defined(arm64) and not defined(arm):
+     # Tested on Microsoft (R) C/C++ Optimizing Compiler 19.28.29335 x64 and x86.
+     # Not tested in previous versions.
+     # https://docs.microsoft.com/en-us/cpp/intrinsics/rotl8-rotl16?view=msvc-160
+@@ -731,7 +732,7 @@ when useBuiltinsRotate:
+     when defined(amd64):
+       func builtin_rotr64(value: culonglong, shift: cint): culonglong
+                          {.importc: "_rotr64", header: "<stdlib.h>".}
+-  elif defined(icl):
++  elif defined(icl) and not defined(android) and not defined(arm64) and not defined(arm):
+     # Tested on Intel(R) C++ Intel(R) 64 Compiler Classic Version 2021.1.2 Build
+     # 20201208_000000 x64 and x86. Not tested in previous versions.
+     func builtin_rotl8(value: uint8, shift: cint): uint8

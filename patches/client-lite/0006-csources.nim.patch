@@ -1,0 +1,31 @@
+# PATCH_WORKING_DIR: vendor/nim-bearssl
+diff --git a/bearssl/abi/csources.nim b/bearssl/abi/csources.nim
+index 14534a0..0dc33cc 100644
+--- a/bearssl/abi/csources.nim
++++ b/bearssl/abi/csources.nim
+@@ -64,9 +64,24 @@ elif defined(powerpc64el):
+ 
+ when sizeof(int) == 8:
+   {.passc: "-DBR_64=1".}
+-  when hostCPU == "amd64":
++  when hostCPU == "amd64" and not defined(android):
+     {.passc:" -DBR_amd64=1".}
+   when defined(vcc):
+     {.passc: "-DBR_UMUL128=1".}
+   else:
+     {.passc: "-DBR_INT128=1".}
++
++# Android cross-compilation support
++when defined(android):
++  when defined(arm64):
++    {.passc: "-fPIC".}
++    {.passc: "-DANDROID".}
++    {.passc: "-D__ANDROID_API__=21".}
++    {.passc: "--target=aarch64-linux-android21".}
++    # Ensure we use the correct compiler and linker for Android
++    when defined(CC_aarch64_linux_android):
++      {.passc: "-cc=" & getEnv("CC_aarch64-linux-android").}
++      {.passl: "-ld=" & getEnv("CC_aarch64-linux-android").}
++    when defined(CXX_aarch64_linux_android):
++      {.passc: "-cxx=" & getEnv("CXX_aarch64-linux_android").}
++      {.passl: "-ld=" & getEnv("CXX_aarch64-linux_android").}

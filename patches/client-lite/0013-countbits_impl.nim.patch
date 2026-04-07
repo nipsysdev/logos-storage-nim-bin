@@ -1,0 +1,15 @@
+# PATCH_WORKING_DIR: vendor/nimbus-build-system/vendor/Nim
+diff --git a/lib/system/countbits_impl.nim b/lib/system/countbits_impl.nim
+index 34969cb32..c9e6e3086 100644
+--- a/lib/system/countbits_impl.nim
++++ b/lib/system/countbits_impl.nim
+@@ -11,7 +11,8 @@
+ 
+ from std/private/bitops_utils import forwardImpl, castToUnsigned
+ 
+-const useBuiltins* = not defined(noIntrinsicsBitOpts)
++const useBuiltins* = not defined(noIntrinsicsBitOpts) and
++                     not defined(android) and not defined(arm64) and not defined(arm)
+ const noUndefined* = defined(noUndefinedBitOpts)
+ const useGCC_builtins* = (defined(gcc) or defined(llvm_gcc) or
+                          defined(clang)) and useBuiltins
