@@ -167,11 +167,12 @@ def update_repository(repo_dir: Path, branch: str, commit: Optional[str] = None)
         run_command(["git", "-C", str(repo_dir), "pull", "origin", branch])
 
 
-def reset_repository(repo_dir: Path) -> None:
+def reset_repository(repo_dir: Path, preserve_nim: bool = False) -> None:
     """Reset repository to clean state.
     
     Args:
         repo_dir: Path to the repository to reset
+        preserve_nim: If True, preserves the embedded Nim compiler binary
     """
     print("Resetting repository to clean state...")
     
@@ -179,11 +180,38 @@ def reset_repository(repo_dir: Path) -> None:
     run_command(["git", "-C", str(repo_dir), "reset", "--hard", "HEAD"])
     
     # Clean untracked files and directories
-    run_command(["git", "-C", str(repo_dir), "clean", "-fd"])
+    if preserve_nim:
+        # Exclude Nim binary directory from cleaning
+        nim_bin_dir = repo_dir / "vendor/nimbus-build-system/vendor/Nim/bin"
+        if nim_bin_dir.exists():
+            # Temporarily move Nim binaries to safety
+            import tempfile
+            import shutil
+            temp_dir = Path(tempfile.mkdtemp())
+            safe_nim_dir = temp_dir / "nim_bin_backup"
+            shutil.copytree(nim_bin_dir, safe_nim_dir)
+            print(f"Preserving embedded Nim binary at {nim_bin_dir}")
+            
+            try:
+                run_command(["git", "-C", str(repo_dir), "clean", "-fd"])
+                # Restore Nim binaries
+                shutil.copytree(safe_nim_dir, nim_bin_dir, dirs_exist_ok=True)
+                print(f"Restored embedded Nim binary to {nim_bin_dir}")
+            finally:
+                # Clean up temp directory
+                shutil.rmtree(temp_dir, ignore_errors=True)
+        else:
+            run_command(["git", "-C", str(repo_dir), "clean", "-fd"])
+    else:
+        run_command(["git", "-C", str(repo_dir), "clean", "-fd"])
     
-    # Clean submodules
-    run_command(["git", "-C", str(repo_dir), "submodule", "foreach", "--recursive", "git reset --hard HEAD"])
-    run_command(["git", "-C", str(repo_dir), "submodule", "foreach", "--recursive", "git clean -fd"])
+    # Clean submodules (but preserve Nim if requested)
+    if preserve_nim:
+        # For the Nim submodule, only reset but don't clean the bin directory
+        run_command(["git", "-C", str(repo_dir), "submodule", "foreach", "--recursive", "if [ \"$name\" = \"vendor/nimbus-build-system/vendor/Nim\" ]; then git reset --hard HEAD; else git reset --hard HEAD && git clean -fd; fi"])
+    else:
+        run_command(["git", "-C", str(repo_dir), "submodule", "foreach", "--recursive", "git reset --hard HEAD"])
+        run_command(["git", "-C", str(repo_dir), "submodule", "foreach", "--recursive", "git clean -fd"])
     
     print("Repository reset complete")
 

@@ -66,8 +66,20 @@ def build_libstorage(logos_storage_dir: Path, jobs: int) -> None:
     from src.utils import get_host_triple
     
     arch = get_host_triple()
+    
+    # Use embedded Nim in PATH for desktop builds too
+    embedded_nim_bin = logos_storage_dir / "vendor/nimbus-build-system/vendor/Nim/bin"
+    if not embedded_nim_bin.exists():
+        raise ValueError(f"Embedded Nim not found at {embedded_nim_bin}. Make sure build_embedded_nim() was called first.")
+    
+    path_separator = ":"
+    current_path = os.environ.get("PATH", "")
+    new_path = path_separator.join([str(embedded_nim_bin), current_path])
+    
     build_env = {
         "STATIC": "1",
+        "PATH": new_path,
+        "USE_EMBEDDED_NIM": "1",
     }
     
     # Apply architecture-specific compiler flags
@@ -131,7 +143,7 @@ def build_libstorage_android(logos_storage_dir: Path, jobs: int, patch_dir: Path
     
     # Configure Android build environment
     from src.utils import configure_android_environment
-    android_env = configure_android_environment()
+    android_env = configure_android_environment(logos_storage_dir)
     
     print(f"Android NDK root: {android_env['CC'].split('/bin')[0]}/..")
     print(f"Host triple: {android_env['HOST_TRIPLE']}")
@@ -187,52 +199,58 @@ def build_libstorage_android(logos_storage_dir: Path, jobs: int, patch_dir: Path
     except:
         pass  # Ignore errors if find command fails
     
-    # For Android, skip the standard make approach and go directly to Android-specific Makefile
-    print("Building directly with Android CLIENT_LITE Makefile (SQLite-only, no REST API)...")
+    # For Android, use build.nims instead of Makefile for better cross-compilation support
+    print("Building with Android build.nims (SQLite-only, no REST API)...")
     
-    # Use our custom Android CLIENT_LITE Makefile (SQLite-only, no REST)
-    android_makefile = logos_storage_dir.parent / "patches/client-lite/Makefile.android"
-    if not android_makefile.exists():
-        raise FileNotFoundError(f"Android CLIENT_LITE Makefile not found: {android_makefile}")
+    # Set up Android environment for build.nims
+    android_env["ANDROID"] = "1"
+    android_env["TARGET_ARCH"] = android_env.get("HOST_TRIPLE", "").split("-")[0]  # Extract arch from host triple
+    
+    # Configure Android-specific defines for build.nims
+    android_defines = "-d:android -d:CLIENT_LITE -d:disable_libbacktrace -d:resultsGenericsOpenSym"
+    if "arm64" in android_env.get("HOST_TRIPLE", ""):
+        android_defines += " -d:arm64"
+        android_env["ANDROID_ARM64_BUILD"] = "1"
+    elif "x86_64" in android_env.get("HOST_TRIPLE", ""):
+        android_defines += " -d:x86_64"
+        android_env["ANDROID_X86_64_BUILD"] = "1"
+    
+    # Disable x86 intrinsics for Android
+    android_defines += " -d:noIntrinsicsBitOpts -d:NO_X86_INTRINSICS -d:__NO_INLINE_ASM__ -d:noX86 -d:noSSE -d:noAVX -d:noAVX2 -d:noAVX512 -d:noX86Intrinsics -d:noSimd -d:noInlineAsm"
+    
+    # Let config.nims handle chronicles configuration with chronicles_colors=NoColors
+    
+    android_env["CODEX_ANDROID_DEFINES"] = android_defines
+    android_env["NO_X86_INTRINSICS"] = "1"
+    android_env["BR_NO_X86_INTRINSICS"] = "1"
+    android_env["BR_NO_X86"] = "1"
+    android_env["BR_NO_ASM"] = "1"
     
     try:
-        # Build using our custom Android CLIENT_LITE Makefile
+        # Build using build.nims with Android configuration
+        print("Running Android build with build.nims...")
         run_command([
-            "make", "-f", str(android_makefile),
-            "libstorage-androidlite"
-        ], cwd=logos_storage_dir.parent, env=android_env)
+            "nim", "-d:android", "libstorageStatic"
+        ], cwd=logos_storage_dir, env=android_env)
     except subprocess.CalledProcessError as e:
-            print(f"Error: Failed to build Android libstorage with both standard and Android Makefile")
-            if hasattr(e, 'cmd'):
-                print(f"Command: {' '.join(e.cmd)}")
-            print(f"Exit code: {e.returncode}")
-            if hasattr(e, 'stdout') and e.stdout:
-                print(f"STDOUT:\n{e.stdout}")
-            if hasattr(e, 'stderr') and e.stderr:
-                print(f"STDERR:\n{e.stderr}")
-            
-            # Try to get more detailed error information
-            print("\n=== Additional Debug Information ===")
-            print(f"Working directory: {logos_storage_dir.parent}")
-            print(f"Makefile exists: {android_makefile.exists()}")
-            print(f"Environment variables:")
-            for key, value in android_env.items():
-                if key in ['CC', 'CXX', 'AR', 'HOST_TRIPLE', 'CLIENT_LITE']:
-                    print(f"  {key}={value}")
-            
-            # Try to run make with verbose output to see what's failing
-            try:
-                print("\n=== Attempting verbose make output ===")
-                verbose_cmd = ["make", "-f", str(android_makefile), "libstorage-androidlite", "VERBOSE=1"]
-                result = run_command(verbose_cmd, cwd=logos_storage_dir.parent, env=android_env, check=False)
-                if result.stdout:
-                    print(f"Verbose STDOUT:\n{result.stdout}")
-                if result.stderr:
-                    print(f"Verbose STDERR:\n{result.stderr}")
-            except Exception as verbose_error:
-                print(f"Failed to get verbose output: {verbose_error}")
-            
-            raise
+        print(f"Error: Failed to build Android libstorage with build.nims")
+        if hasattr(e, 'cmd'):
+            print(f"Command: {' '.join(e.cmd)}")
+        print(f"Exit code: {e.returncode}")
+        if hasattr(e, 'stdout') and e.stdout:
+            print(f"STDOUT:\n{e.stdout}")
+        if hasattr(e, 'stderr') and e.stderr:
+            print(f"STDERR:\n{e.stderr}")
+        
+        # Try to get more detailed error information
+        print("\n=== Additional Debug Information ===")
+        print(f"Working directory: {logos_storage_dir}")
+        print(f"Environment variables:")
+        for key, value in android_env.items():
+            if key in ['CC', 'CXX', 'AR', 'HOST_TRIPLE', 'CLIENT_LITE', 'ANDROID', 'TARGET_ARCH', 'CODEX_ANDROID_DEFINES']:
+                print(f"  {key}={value}")
+        
+        raise
     
     print("Android libstorage build complete")
 

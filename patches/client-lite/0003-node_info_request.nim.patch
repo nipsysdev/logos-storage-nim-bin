@@ -1,3 +1,4 @@
+# PATCH_WORKING_DIR: .
 diff --git a/library/storage_thread_requests/requests/node_info_request.nim b/library/storage_thread_requests/requests/node_info_request.nim
 index 7e755a3a..60398eef 100644
 --- a/library/storage_thread_requests/requests/node_info_request.nim

@@ -122,8 +122,8 @@ def get_android_host_triple() -> str:
     return "aarch64-unknown-linux-android"
 
 
-def configure_android_environment() -> dict:
-    """Configure Android NDK build environment."""
+def configure_android_environment(logos_storage_dir: Path) -> dict:
+    """Configure Android NDK build environment for build.nims approach."""
     ndk_root = get_android_ndk_root()
     host_triple = get_android_host_triple()
     
@@ -136,28 +136,42 @@ def configure_android_environment() -> dict:
         if not ndk_target.exists():
             raise ValueError(f"NDK toolchain not found at {ndk_root}/toolchains/llvm/prebuilt/")
     
-    # Android compilers
-    cc_path = ndk_target / "bin/aarch64-linux-android21-clang"
-    cxx_path = ndk_target / "bin/aarch64-linux-android21-clang++"
-    ar_path = ndk_target / "bin/llvm-ar"
+    # Extract architecture from host triple for compiler selection
+    arch = host_triple.split("-")[0]  # e.g., "aarch64" from "aarch64-unknown-linux-android"
     
-    for tool_path in [cc_path, cxx_path, ar_path]:
+    # Android compilers based on architecture
+    cc_path = ndk_target / f"bin/{arch}-linux-android21-clang"
+    cxx_path = ndk_target / f"bin/{arch}-linux-android21-clang++"
+    ar_path = ndk_target / "bin/llvm-ar"
+    android_linker = ndk_target / "bin/ld.lld"
+    
+    for tool_path in [cc_path, cxx_path, ar_path, android_linker]:
         if not tool_path.exists():
             raise ValueError(f"Android tool not found: {tool_path}")
     
-    # Add nim to PATH - use environment variables or sensible defaults
-    nimble_bin = os.environ.get("NIMBLE_BIN", os.path.expanduser("~/.nimble/bin"))
-    chosenim_toolchains = os.environ.get("CHOSENIM_TOOLCHAINS", os.path.expanduser("~/.choosenim/toolchains/nim-2.0.2/bin"))
-    nim_paths = [nimble_bin, chosenim_toolchains]
+    # Detect Clang version for build.nims
+    clang_lib_path = ndk_target / "lib/clang"
+    clang_version = "14"  # Default fallback
+    if clang_lib_path.exists():
+        import re
+        versions = []
+        for item in clang_lib_path.iterdir():
+            if item.is_dir() and re.match(r'^\d+$', item.name):
+                versions.append(int(item.name))
+        if versions:
+            clang_version = str(max(versions))
     
-    # Filter out paths that don't exist
-    nim_paths = [path for path in nim_paths if Path(path).exists()]
+    # Use ONLY embedded Nim - no system Nim fallback
+    embedded_nim_bin = logos_storage_dir / "vendor/nimbus-build-system/vendor/Nim/bin"
+    if not embedded_nim_bin.exists():
+        raise ValueError(f"Embedded Nim not found at {embedded_nim_bin}. Make sure build_embedded_nim() was called first.")
     
     path_separator = ":"
     current_path = os.environ.get("PATH", "")
-    new_path = path_separator.join(nim_paths + [current_path])
+    new_path = path_separator.join([str(embedded_nim_bin), str(ndk_target / "bin"), current_path])
     
-    return {
+    # Build environment for build.nims
+    env = {
         "STATIC": "1",
         "CLIENT_LITE": "1",
         "HOST_TRIPLE": host_triple,
@@ -165,7 +179,30 @@ def configure_android_environment() -> dict:
         "CXX": str(cxx_path),
         "AR": str(ar_path),
         "PATH": new_path,
+        "USE_EMBEDDED_NIM": "1",
+        
+        # build.nims specific environment variables
+        "ANDROID_NDK_HOME": ndk_root,
+        "ANDROID_NDK_ROOT": ndk_root,
+        "ANDROID_CLANG_VERSION": clang_version,
+        "CODEX_ANDROID_CC": str(cc_path),
+        "CODEX_ANDROID_AR": str(ar_path),
+        "TARGET_ARCH": arch,
+        
+        # Architecture-specific flags
+        "NO_X86_INTRINSICS": "1",
+        "BR_NO_X86_INTRINSICS": "1",
+        "BR_NO_X86": "1",
+        "BR_NO_ASM": "1",
     }
+    
+    # Add architecture-specific environment variables
+    if arch == "aarch64":
+        env["ANDROID_ARM64_BUILD"] = "1"
+    elif arch == "x86_64":
+        env["ANDROID_X86_64_BUILD"] = "1"
+    
+    return env
 
 
 def configure_reproducible_environment() -> None:
@@ -189,3 +226,78 @@ def get_target_platform() -> str:
 def is_android_build() -> bool:
     """Check if this is an Android build."""
     return get_target_platform() == "android"
+
+
+def build_embedded_nim(logos_storage_dir: Path, jobs: int = None) -> Path:
+    """Build embedded Nim using logos-storage-nim Makefile.
+    
+    Args:
+        logos_storage_dir: Path to the logos-storage-nim repository
+        jobs: Number of parallel jobs to use (defaults to system optimal)
+        
+    Returns:
+        Path to built nim binary
+        
+    Raises:
+        FileNotFoundError: If logos-storage-nim directory not found
+        RuntimeError: If Nim build fails or binary not found after build
+        
+    Note: This takes 10-15 minutes.
+    """
+    if not logos_storage_dir.exists():
+        raise FileNotFoundError(f"logos-storage-nim directory not found at {logos_storage_dir}")
+    
+    # The embedded Nim binary path based on nimbus-build-system variables
+    nim_binary = logos_storage_dir / "vendor/nimbus-build-system/vendor/Nim/bin/nim"
+    
+    # Check if nim binary already exists
+    if nim_binary.exists():
+        print(f"✓ Embedded Nim already built at {nim_binary}")
+        return nim_binary
+    
+    print("This is a one-time build that will only happen if the embedded Nim binary doesn't exist.")
+    
+    try:
+        # First, ensure git submodules are initialized
+        print("Initializing git submodules...")
+        result = run_command(["git", "submodule", "update", "--init", "--recursive"],
+                           cwd=logos_storage_dir)
+        if result.returncode != 0:
+            print(f"Warning: git submodule update returned exit code {result.returncode}")
+            print("Continuing anyway...")
+        
+        # Use the logos-storage-nim Makefile to build dependencies (including Nim)
+        # The deps target will build the Nim compiler via the build-nim target
+        # Use check=False to handle warnings/tips that don't indicate actual failure
+        print("Starting Nim compiler build...")
+        
+        # Determine number of parallel jobs
+        if jobs is None:
+            jobs = get_parallel_jobs()
+        
+        # Build with parallel jobs for faster compilation
+        make_cmd = ["make", "-C", str(logos_storage_dir), "-j", str(jobs), "deps"]
+        print(f"Running: {' '.join(make_cmd)}")
+        result = run_command(make_cmd, check=False)
+        
+        # Check if the build actually succeeded despite the exit code
+        if nim_binary.exists():
+            print(f"✓ Embedded Nim built successfully at {nim_binary}")
+            return nim_binary
+        elif result.returncode == 0:
+            # Build completed successfully but binary not found
+            raise RuntimeError("Nim build completed successfully but binary not found at expected location")
+        else:
+            # Build failed with non-zero exit code and binary doesn't exist
+            error_msg = f"Nim build failed with exit code {result.returncode}"
+            if result.stdout:
+                error_msg += f"\nSTDOUT:\n{result.stdout}"
+            if result.stderr:
+                error_msg += f"\nSTDERR:\n{result.stderr}"
+            raise RuntimeError(error_msg)
+        
+    except Exception as e:
+        if not isinstance(e, RuntimeError):
+            print(f"✗ Failed to build embedded Nim: {e}")
+            raise RuntimeError(f"Failed to build embedded Nim: {e}") from e
+        raise
